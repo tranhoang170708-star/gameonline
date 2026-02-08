@@ -3,13 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔️ GAME ONLINE - RPG Kiếm Tiền</title>
+    <title>⚔️ GAME ONLINE - RPG Phiêu Lưu [FULL VERSION]</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
@@ -152,154 +148,112 @@
     <div id="root"></div>
 
     <script>
-        // ==================== FIREBASE CONFIGURATION ====================
-        const firebaseConfig = {
-            apiKey: "AIzaSyDMLhduQOsbUPXuJ4l0zUj_fjc3k7pAUbI",
-            authDomain: "myrpggame-5adb9.firebaseapp.com",
-            projectId: "myrpggame-5adb9",
-            storageBucket: "myrpggame-5adb9.firebasestorage.app",
-            messagingSenderId: "788942574263",
-            appId: "1:788942574263:web:ef450c3d0cf72afd317332",
-            measurementId: "G-7T72ZT3V8R",
-            databaseURL: "https://myrpggame-5adb9-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        };
-
-        // Initialize Firebase
-        let db;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.database();
-            console.log("✅ Firebase initialized successfully!");
-        } catch (e) {
-            console.error("❌ Firebase initialization error:", e);
-            alert("Lỗi kết nối Firebase! Vui lòng kiểm tra cấu hình.");
-        }
-
-        // ==================== FIREBASE DATABASE CLASS ====================
+        // ==================== DATABASE STRUCTURE ====================
         class GameDatabase {
             constructor() {
-                this.MASTER_ADMIN = 'Quyet170708';
+                this.USERS_KEY = 'rpg_users_db';
+                this.MARKET_KEY = 'rpg_market_db';
+                this.WITHDRAW_KEY = 'rpg_withdraw_db';
+                this.CURRENT_USER_KEY = 'rpg_current_user';
+                this.ADMINS_KEY = 'rpg_admins_list';
+                this.NOTIFICATIONS_KEY = 'rpg_notifications';
+                this.MASTER_ADMIN = 'Quyet170708'; // Admin cố định
+                
+                // Initialize admin list on first load
+                this.initializeAdmins();
             }
 
-            // ===== USER MANAGEMENT =====
-            async userExists(username) {
-                try {
-                    const snapshot = await db.ref('users/' + username).once('value');
-                    return snapshot.exists();
-                } catch (e) {
-                    console.error('Error checking user:', e);
-                    return false;
+            // ===== INITIALIZE ADMINS =====
+            initializeAdmins() {
+                const admins = this.getAllAdmins();
+                if (!admins.includes(this.MASTER_ADMIN)) {
+                    admins.push(this.MASTER_ADMIN);
+                    this.saveAdmins(admins);
                 }
             }
 
-            async createUser(username, password) {
+            // ===== NOTIFICATIONS MANAGEMENT =====
+            getAllNotifications() {
                 try {
-                    const exists = await this.userExists(username);
-                    if (exists) {
-                        return { success: false, message: 'Username đã tồn tại!' };
-                    }
-
-                    const userData = {
-                        password: password,
-                        playerData: {
-                            name: username,
-                            hp: 100,
-                            maxHp: 100,
-                            atk: 2,
-                            def: 0,
-                            crit: 5,
-                            gold: 0,
-                            level: 1,
-                            exp: 0,
-                            currentStage: 1,
-                            totalMonstersKilled: 0,
-                            weapon: null,
-                            armor: null,
-                            pet: null,
-                            inventory: [],
-                            ownedWeapons: [],
-                            ownedArmors: [],
-                            ownedPets: [],
-                            dailyBosses: 2,
-                            weeklyBosses: 3,
-                            lastDailyReset: Date.now(),
-                            lastWeeklyReset: Date.now(),
-                        },
-                        createdAt: Date.now()
-                    };
-
-                    await db.ref('users/' + username).set(userData);
-                    console.log('✅ User created:', username);
-                    return { success: true, message: 'Tạo tài khoản thành công!' };
+                    const notifs = localStorage.getItem(this.NOTIFICATIONS_KEY);
+                    return notifs ? JSON.parse(notifs) : [];
                 } catch (e) {
-                    console.error('Error creating user:', e);
-                    return { success: false, message: 'Lỗi tạo tài khoản!' };
+                    console.error('Error loading notifications:', e);
+                    return [];
                 }
             }
 
-            async loginUser(username, password) {
+            saveNotifications(notifications) {
                 try {
-                    const snapshot = await db.ref('users/' + username).once('value');
-                    
-                    if (!snapshot.exists()) {
-                        return { success: false, message: 'Username không tồn tại!' };
-                    }
-
-                    const userData = snapshot.val();
-                    if (userData.password !== password) {
-                        return { success: false, message: 'Sai mật khẩu!' };
-                    }
-
-                    return { 
-                        success: true, 
-                        message: 'Đăng nhập thành công!', 
-                        userData: userData.playerData 
-                    };
-                } catch (e) {
-                    console.error('Error logging in:', e);
-                    return { success: false, message: 'Lỗi đăng nhập!' };
-                }
-            }
-
-            async savePlayerData(username, playerData) {
-                try {
-                    await db.ref('users/' + username + '/playerData').set(playerData);
-                    console.log('✅ Player data saved:', username);
+                    localStorage.setItem(this.NOTIFICATIONS_KEY, JSON.stringify(notifications));
                     return true;
                 } catch (e) {
-                    console.error('Error saving player data:', e);
+                    console.error('Lỗi lưu notifications:', e);
                     return false;
                 }
             }
 
-            async getPlayerData(username) {
-                try {
-                    const snapshot = await db.ref('users/' + username + '/playerData').once('value');
-                    return snapshot.exists() ? snapshot.val() : null;
-                } catch (e) {
-                    console.error('Error getting player data:', e);
-                    return null;
+            addNotification(message, type = 'info') {
+                const notifications = this.getAllNotifications();
+                const newNotif = {
+                    id: Date.now(),
+                    message: message,
+                    type: type, // info, success, warning, error
+                    createdAt: Date.now(),
+                    dismissed: false
+                };
+                notifications.unshift(newNotif);
+                // Giữ tối đa 50 thông báo
+                if (notifications.length > 50) {
+                    notifications.splice(50);
                 }
+                this.saveNotifications(notifications);
+                return newNotif;
+            }
+
+            getActiveNotifications() {
+                const notifications = this.getAllNotifications();
+                // Lấy thông báo trong 24h và chưa dismiss
+                const now = Date.now();
+                const dayMs = 24 * 60 * 60 * 1000;
+                return notifications.filter(n => !n.dismissed && (now - n.createdAt) < dayMs);
+            }
+
+            dismissNotification(notifId) {
+                const notifications = this.getAllNotifications();
+                const notif = notifications.find(n => n.id === notifId);
+                if (notif) {
+                    notif.dismissed = true;
+                    this.saveNotifications(notifications);
+                    return true;
+                }
+                return false;
             }
 
             // ===== ADMIN MANAGEMENT =====
-            async getAllAdmins() {
+            getAllAdmins() {
                 try {
-                    const snapshot = await db.ref('admins').once('value');
-                    const admins = snapshot.exists() ? snapshot.val() : [];
-                    if (!admins.includes(this.MASTER_ADMIN)) {
-                        admins.push(this.MASTER_ADMIN);
-                        await db.ref('admins').set(admins);
-                    }
-                    return admins;
+                    const admins = localStorage.getItem(this.ADMINS_KEY);
+                    const adminList = admins ? JSON.parse(admins) : [];
+                    return adminList;
                 } catch (e) {
-                    console.error('Error getting admins:', e);
+                    console.error('Error loading admins:', e);
                     return [this.MASTER_ADMIN];
                 }
             }
 
-            async isAdmin(username) {
-                const admins = await this.getAllAdmins();
+            saveAdmins(adminList) {
+                try {
+                    localStorage.setItem(this.ADMINS_KEY, JSON.stringify(adminList));
+                    return true;
+                } catch (e) {
+                    console.error('Lỗi lưu admins:', e);
+                    return false;
+                }
+            }
+
+            isAdmin(username) {
+                const admins = this.getAllAdmins();
                 return admins.includes(username);
             }
 
@@ -307,251 +261,283 @@
                 return username === this.MASTER_ADMIN;
             }
 
-            async addAdmin(username) {
+            addAdmin(username) {
+                if (this.userExists(username)) {
+                    const admins = this.getAllAdmins();
+                    if (!admins.includes(username)) {
+                        admins.push(username);
+                        this.saveAdmins(admins);
+                        return { success: true, message: `Đã thêm ${username} vào danh sách Admin!` };
+                    }
+                    return { success: false, message: 'User này đã là Admin rồi!' };
+                }
+                return { success: false, message: 'User không tồn tại!' };
+            }
+
+            removeAdmin(username) {
+                if (username === this.MASTER_ADMIN) {
+                    return { success: false, message: 'Không thể gỡ Master Admin!' };
+                }
+                const admins = this.getAllAdmins();
+                const newAdmins = admins.filter(a => a !== username);
+                if (newAdmins.length < admins.length) {
+                    this.saveAdmins(newAdmins);
+                    return { success: true, message: `Đã gỡ ${username} khỏi Admin!` };
+                }
+                return { success: false, message: 'User này không phải Admin!' };
+            }
+
+            // ===== USER DATABASE =====
+            getAllUsers() {
                 try {
-                    const exists = await this.userExists(username);
-                    if (!exists) {
-                        return { success: false, message: 'User không tồn tại!' };
-                    }
-
-                    const admins = await this.getAllAdmins();
-                    if (admins.includes(username)) {
-                        return { success: false, message: 'User này đã là Admin!' };
-                    }
-
-                    admins.push(username);
-                    await db.ref('admins').set(admins);
-                    return { success: true, message: `Đã thêm ${username} vào Admin!` };
+                    const users = localStorage.getItem(this.USERS_KEY);
+                    const parsed = users ? JSON.parse(users) : {};
+                    console.log('getAllUsers:', Object.keys(parsed)); // Debug
+                    return parsed;
                 } catch (e) {
-                    console.error('Error adding admin:', e);
-                    return { success: false, message: 'Lỗi thêm admin!' };
+                    console.error('Error loading users:', e);
+                    return {};
                 }
             }
 
-            async removeAdmin(username) {
+            saveAllUsers(users) {
                 try {
-                    if (username === this.MASTER_ADMIN) {
-                        return { success: false, message: 'Không thể gỡ Master Admin!' };
-                    }
-
-                    const admins = await this.getAllAdmins();
-                    const newAdmins = admins.filter(a => a !== username);
-                    
-                    if (newAdmins.length < admins.length) {
-                        await db.ref('admins').set(newAdmins);
-                        return { success: true, message: `Đã gỡ ${username} khỏi Admin!` };
-                    }
-                    
-                    return { success: false, message: 'User không phải Admin!' };
+                    localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+                    console.log('saveAllUsers: Saved', Object.keys(users).length, 'users'); // Debug
+                    return true;
                 } catch (e) {
-                    console.error('Error removing admin:', e);
-                    return { success: false, message: 'Lỗi gỡ admin!' };
-                }
-            }
-
-            // ===== GOLD MODIFICATION =====
-            async modifyUserGold(username, amount) {
-                try {
-                    const exists = await this.userExists(username);
-                    if (!exists) {
-                        return { success: false, message: `User "${username}" không tồn tại!` };
-                    }
-
-                    const snapshot = await db.ref('users/' + username + '/playerData/gold').once('value');
-                    const currentGold = snapshot.exists() ? snapshot.val() : 0;
-                    const newGold = Math.max(0, currentGold + amount);
-                    
-                    await db.ref('users/' + username + '/playerData/gold').set(newGold);
-                    
-                    console.log('✅ Gold modified:', username, 'New balance:', newGold);
-                    return { success: true, gold: newGold };
-                } catch (e) {
-                    console.error('Error modifying gold:', e);
-                    return { success: false, message: 'Lỗi cộng/trừ vàng!' };
-                }
-            }
-
-            // ===== NOTIFICATIONS =====
-            async getAllNotifications() {
-                try {
-                    const snapshot = await db.ref('notifications').once('value');
-                    return snapshot.exists() ? snapshot.val() : [];
-                } catch (e) {
-                    console.error('Error getting notifications:', e);
-                    return [];
-                }
-            }
-
-            async addNotification(message, type = 'info') {
-                try {
-                    const notifications = await this.getAllNotifications();
-                    const newNotif = {
-                        id: Date.now(),
-                        message: message,
-                        type: type,
-                        createdAt: Date.now(),
-                        dismissed: false
-                    };
-                    notifications.unshift(newNotif);
-                    
-                    // Giữ tối đa 50 thông báo
-                    if (notifications.length > 50) {
-                        notifications.splice(50);
-                    }
-                    
-                    await db.ref('notifications').set(notifications);
-                    return newNotif;
-                } catch (e) {
-                    console.error('Error adding notification:', e);
-                    return null;
-                }
-            }
-
-            async getActiveNotifications() {
-                const notifications = await this.getAllNotifications();
-                const now = Date.now();
-                const dayMs = 24 * 60 * 60 * 1000;
-                return notifications.filter(n => !n.dismissed && (now - n.createdAt) < dayMs);
-            }
-
-            async dismissNotification(notifId) {
-                try {
-                    const notifications = await this.getAllNotifications();
-                    const notif = notifications.find(n => n.id === notifId);
-                    if (notif) {
-                        notif.dismissed = true;
-                        await db.ref('notifications').set(notifications);
-                        return true;
-                    }
-                    return false;
-                } catch (e) {
-                    console.error('Error dismissing notification:', e);
+                    console.error('Lỗi lưu users:', e);
                     return false;
                 }
             }
 
-            // ===== MARKET =====
-            async getAllMarketListings() {
+            userExists(username) {
+                const users = this.getAllUsers();
+                const exists = users.hasOwnProperty(username);
+                console.log('userExists:', username, '=', exists); // Debug
+                return exists;
+            }
+
+            createUser(username, password) {
+                if (this.userExists(username)) {
+                    return { success: false, message: 'Username đã tồn tại!' };
+                }
+
+                const users = this.getAllUsers();
+                users[username] = {
+                    password: password,
+                    playerData: {
+                        name: username,
+                        hp: 100,
+                        maxHp: 100,
+                        atk: 2,
+                        def: 0,
+                        crit: 5,
+                        gold: 0,
+                        level: 1,
+                        exp: 0,
+                        currentStage: 1,
+                        totalMonstersKilled: 0,
+                        weapon: null,
+                        armor: null,
+                        pet: null,
+                        inventory: [],
+                        ownedWeapons: [],
+                        ownedArmors: [],
+                        ownedPets: [],
+                        dailyBosses: 2,
+                        weeklyBosses: 3,
+                        lastDailyReset: Date.now(),
+                        lastWeeklyReset: Date.now(),
+                    },
+                    createdAt: Date.now()
+                };
+
+                this.saveAllUsers(users);
+                console.log('User created:', username); // Debug
+                return { success: true, message: 'Tạo tài khoản thành công!' };
+            }
+
+            loginUser(username, password) {
+                const users = this.getAllUsers();
+                
+                if (!users[username]) {
+                    return { success: false, message: 'Username không tồn tại!' };
+                }
+
+                if (users[username].password !== password) {
+                    return { success: false, message: 'Sai mật khẩu!' };
+                }
+
+                localStorage.setItem(this.CURRENT_USER_KEY, username);
+                return { success: true, message: 'Đăng nhập thành công!', userData: users[username].playerData };
+            }
+
+            getCurrentUser() {
+                return localStorage.getItem(this.CURRENT_USER_KEY);
+            }
+
+            logoutUser() {
+                localStorage.removeItem(this.CURRENT_USER_KEY);
+            }
+
+            savePlayerData(username, playerData) {
+                const users = this.getAllUsers();
+                if (users[username]) {
+                    users[username].playerData = playerData;
+                    this.saveAllUsers(users);
+                    console.log('Player data saved for:', username); // Debug
+                    return true;
+                }
+                console.error('Cannot save player data: user not found:', username); // Debug
+                return false;
+            }
+
+            getPlayerData(username) {
+                const users = this.getAllUsers();
+                return users[username] ? users[username].playerData : null;
+            }
+
+            // ===== ADMIN: ADD/REMOVE GOLD =====
+            modifyUserGold(username, amount) {
+                console.log('modifyUserGold called:', username, amount); // Debug
+                
+                // Force reload users from localStorage
+                const users = this.getAllUsers();
+                console.log('Available users:', Object.keys(users)); // Debug
+                
+                if (!users[username]) {
+                    console.error('User not found:', username); // Debug
+                    return { success: false, message: `User "${username}" không tồn tại trong hệ thống!` };
+                }
+                
+                // Modify gold
+                users[username].playerData.gold = Math.max(0, users[username].playerData.gold + amount);
+                
+                // Save immediately
+                this.saveAllUsers(users);
+                
+                const newGold = users[username].playerData.gold;
+                console.log('Gold modified. New balance:', newGold); // Debug
+                
+                return { success: true, gold: newGold };
+            }
+
+            // ===== MARKET DATABASE =====
+            getAllMarketListings() {
                 try {
-                    const snapshot = await db.ref('market').once('value');
-                    return snapshot.exists() ? snapshot.val() : [];
+                    const market = localStorage.getItem(this.MARKET_KEY);
+                    return market ? JSON.parse(market) : [];
                 } catch (e) {
-                    console.error('Error getting market listings:', e);
                     return [];
                 }
             }
 
-            async addMarketListing(seller, item, type, price) {
+            saveMarketListings(listings) {
                 try {
-                    const listings = await this.getAllMarketListings();
-                    const newListing = {
-                        id: Date.now(),
-                        seller: seller,
-                        item: item,
-                        type: type,
-                        price: price,
-                        listedAt: Date.now()
-                    };
-                    listings.push(newListing);
-                    await db.ref('market').set(listings);
-                    return newListing;
+                    localStorage.setItem(this.MARKET_KEY, JSON.stringify(listings));
+                    return true;
                 } catch (e) {
-                    console.error('Error adding market listing:', e);
-                    return null;
+                    console.error('Lỗi lưu market:', e);
+                    return false;
                 }
             }
 
-            async removeMarketListing(listingId) {
-                try {
-                    const listings = await this.getAllMarketListings();
-                    const listing = listings.find(l => l.id === listingId);
-                    const newListings = listings.filter(l => l.id !== listingId);
-                    await db.ref('market').set(newListings);
-                    return listing;
-                } catch (e) {
-                    console.error('Error removing market listing:', e);
-                    return null;
-                }
+            addMarketListing(seller, item, type, price) {
+                const listings = this.getAllMarketListings();
+                const newListing = {
+                    id: Date.now(),
+                    seller: seller,
+                    item: item,
+                    type: type,
+                    price: price,
+                    listedAt: Date.now()
+                };
+                listings.push(newListing);
+                this.saveMarketListings(listings);
+                return newListing;
             }
 
-            async getMyListings(username) {
-                const listings = await this.getAllMarketListings();
+            removeMarketListing(listingId) {
+                let listings = this.getAllMarketListings();
+                const listing = listings.find(l => l.id === listingId);
+                listings = listings.filter(l => l.id !== listingId);
+                this.saveMarketListings(listings);
+                return listing;
+            }
+
+            getMyListings(username) {
+                const listings = this.getAllMarketListings();
                 return listings.filter(l => l.seller === username);
             }
 
-            async getOthersListings(username) {
-                const listings = await this.getAllMarketListings();
+            getOthersListings(username) {
+                const listings = this.getAllMarketListings();
                 return listings.filter(l => l.seller !== username);
             }
 
-            // ===== WITHDRAW =====
-            async getAllWithdrawRequests() {
+            // ===== WITHDRAW DATABASE =====
+            getAllWithdrawRequests() {
                 try {
-                    const snapshot = await db.ref('withdrawals').once('value');
-                    return snapshot.exists() ? snapshot.val() : [];
+                    const requests = localStorage.getItem(this.WITHDRAW_KEY);
+                    return requests ? JSON.parse(requests) : [];
                 } catch (e) {
-                    console.error('Error getting withdraw requests:', e);
                     return [];
                 }
             }
 
-            async addWithdrawRequest(username, method, amount, details) {
+            saveWithdrawRequests(requests) {
                 try {
-                    const requests = await this.getAllWithdrawRequests();
-                    const newRequest = {
-                        id: Date.now(),
-                        username: username,
-                        method: method,
-                        amount: amount,
-                        details: details,
-                        status: 'pending',
-                        date: new Date().toLocaleString('vi-VN'),
-                        createdAt: Date.now()
-                    };
-                    
-                    if (method === 'card') {
-                        newRequest.cardCode = this.generateCardCode();
-                    }
-                    
-                    requests.push(newRequest);
-                    await db.ref('withdrawals').set(requests);
-                    return newRequest;
-                } catch (e) {
-                    console.error('Error adding withdraw request:', e);
-                    return null;
-                }
-            }
-
-            async updateWithdrawStatus(requestId, status) {
-                try {
-                    const requests = await this.getAllWithdrawRequests();
-                    const request = requests.find(r => r.id === requestId);
-                    if (request) {
-                        request.status = status;
-                        await db.ref('withdrawals').set(requests);
-                        return true;
-                    }
-                    return false;
-                } catch (e) {
-                    console.error('Error updating withdraw status:', e);
-                    return false;
-                }
-            }
-
-            async deleteWithdrawRequest(requestId) {
-                try {
-                    const requests = await this.getAllWithdrawRequests();
-                    const newRequests = requests.filter(r => r.id !== requestId);
-                    await db.ref('withdrawals').set(newRequests);
+                    localStorage.setItem(this.WITHDRAW_KEY, JSON.stringify(requests));
                     return true;
                 } catch (e) {
-                    console.error('Error deleting withdraw request:', e);
+                    console.error('Lỗi lưu withdraw:', e);
                     return false;
                 }
             }
 
-            async getUserWithdrawRequests(username) {
-                const requests = await this.getAllWithdrawRequests();
+            addWithdrawRequest(username, method, amount, details) {
+                const requests = this.getAllWithdrawRequests();
+                const newRequest = {
+                    id: Date.now(),
+                    username: username,
+                    method: method,
+                    amount: amount,
+                    details: details,
+                    status: 'pending',
+                    date: new Date().toLocaleString('vi-VN'),
+                    createdAt: Date.now()
+                };
+                
+                if (method === 'card') {
+                    newRequest.cardCode = this.generateCardCode();
+                }
+                
+                requests.push(newRequest);
+                this.saveWithdrawRequests(requests);
+                return newRequest;
+            }
+
+            updateWithdrawStatus(requestId, status) {
+                const requests = this.getAllWithdrawRequests();
+                const request = requests.find(r => r.id === requestId);
+                if (request) {
+                    request.status = status;
+                    this.saveWithdrawRequests(requests);
+                    return true;
+                }
+                return false;
+            }
+
+            deleteWithdrawRequest(requestId) {
+                let requests = this.getAllWithdrawRequests();
+                requests = requests.filter(r => r.id !== requestId);
+                this.saveWithdrawRequests(requests);
+                return true;
+            }
+
+            getUserWithdrawRequests(username) {
+                const requests = this.getAllWithdrawRequests();
                 return requests.filter(r => r.username === username);
             }
 
@@ -562,17 +548,6 @@
                     code += chars[Math.floor(Math.random() * chars.length)];
                 }
                 return code;
-            }
-
-            // ===== GET ALL USERS =====
-            async getAllUsers() {
-                try {
-                    const snapshot = await db.ref('users').once('value');
-                    return snapshot.exists() ? snapshot.val() : {};
-                } catch (e) {
-                    console.error('Error getting all users:', e);
-                    return {};
-                }
             }
         }
 
@@ -632,7 +607,7 @@
         ];
 
         // ==================== AUTH FUNCTIONS ====================
-        async function handleRegister() {
+        function handleRegister() {
             const username = document.getElementById('registerUsername').value.trim();
             const password = document.getElementById('registerPassword').value;
 
@@ -648,7 +623,7 @@
                 return;
             }
 
-            const result = await DB.createUser(username, password);
+            const result = DB.createUser(username, password);
             
             if (result.success) {
                 gameState.authError = '';
@@ -661,25 +636,17 @@
             }
         }
 
-        async function handleLogin() {
+        function handleLogin() {
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
 
-            const result = await DB.loginUser(username, password);
+            const result = DB.loginUser(username, password);
             
             if (result.success) {
                 gameState.isLoggedIn = true;
                 gameState.currentUsername = username;
                 gameState.player = result.userData;
                 gameState.authError = '';
-                
-                // Lắng nghe thay đổi real-time từ Firebase
-                db.ref('users/' + username + '/playerData').on('value', (snapshot) => {
-                    if (snapshot.exists()) {
-                        gameState.player = snapshot.val();
-                        render();
-                    }
-                });
                 
                 // Kiểm tra thông báo
                 checkNotifications();
@@ -699,11 +666,8 @@
 
         function handleLogout() {
             if (confirm('Bạn có chắc muốn đăng xuất?')) {
-                // Tắt listener
-                if (gameState.currentUsername) {
-                    db.ref('users/' + gameState.currentUsername + '/playerData').off();
-                }
-                
+                saveGame();
+                DB.logoutUser();
                 gameState.isLoggedIn = false;
                 gameState.currentUsername = null;
                 gameState.player = null;
@@ -714,27 +678,27 @@
         }
 
         // ==================== NOTIFICATION FUNCTIONS ====================
-        async function checkNotifications() {
-            const activeNotifs = await DB.getActiveNotifications();
+        function checkNotifications() {
+            const activeNotifs = DB.getActiveNotifications();
             if (activeNotifs.length > 0 && !gameState.currentNotification) {
                 gameState.currentNotification = activeNotifs[0];
                 render();
             }
         }
 
-        async function dismissCurrentNotification() {
+        function dismissCurrentNotification() {
             if (gameState.currentNotification) {
-                await DB.dismissNotification(gameState.currentNotification.id);
+                DB.dismissNotification(gameState.currentNotification.id);
                 gameState.currentNotification = null;
-                checkNotifications();
+                checkNotifications(); // Kiểm tra xem còn thông báo nào không
                 render();
             }
         }
 
         // ==================== SAVE/LOAD FUNCTIONS ====================
-        async function saveGame() {
+        function saveGame() {
             if (gameState.currentUsername && gameState.player) {
-                await DB.savePlayerData(gameState.currentUsername, gameState.player);
+                DB.savePlayerData(gameState.currentUsername, gameState.player);
             }
         }
 
@@ -768,7 +732,9 @@
             
             let hp = baseHp;
             let atk = baseAtk;
+            // GIẢM phần thưởng vàng xuống 60% so với trước
             let goldReward = Math.floor((10 + stage * 5) * 0.6);
+            // GIẢM phần thưởng exp xuống 70% so với trước
             let expReward = Math.floor((20 + stage * 10) * 0.7);
             let name = `Quái Vật Lv.${stage}`;
             let icon = '👾';
@@ -941,7 +907,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 300);
+                }, 1500);
             }
         }
 
@@ -1072,7 +1038,7 @@
             render();
         }
 
-        async function listItemForSale() {
+        function listItemForSale() {
             const price = parseInt(gameState.sellPrice);
             
             if (!price || price <= 0) {
@@ -1095,7 +1061,7 @@
                 gameState.player.ownedPets = gameState.player.ownedPets.filter(p => p.name !== item.name);
             }
 
-            await DB.addMarketListing(gameState.currentUsername, item, type, price);
+            DB.addMarketListing(gameState.currentUsername, item, type, price);
             
             saveGame();
             gameState.selectedItemToSell = null;
@@ -1106,7 +1072,7 @@
             render();
         }
 
-        async function buyFromMarket(listing) {
+        function buyFromMarket(listing) {
             if (gameState.player.gold < listing.price) {
                 alert('Không đủ vàng để mua!');
                 return;
@@ -1123,21 +1089,21 @@
                 gameState.player.ownedPets.push(item);
             }
 
-            const sellerData = await DB.getPlayerData(listing.seller);
+            const sellerData = DB.getPlayerData(listing.seller);
             if (sellerData) {
                 sellerData.gold += listing.price;
-                await DB.savePlayerData(listing.seller, sellerData);
+                DB.savePlayerData(listing.seller, sellerData);
             }
 
-            await DB.removeMarketListing(listing.id);
+            DB.removeMarketListing(listing.id);
 
             saveGame();
             addLog(`✅ Đã mua ${item.icon} ${item.name} từ ${listing.seller}!`, 'success');
             render();
         }
 
-        async function removeListing(listingId) {
-            const listing = await DB.removeMarketListing(listingId);
+        function removeListing(listingId) {
+            const listing = DB.removeMarketListing(listingId);
             
             if (listing) {
                 const { item, type } = listing;
@@ -1231,7 +1197,7 @@
         }
 
         // ==================== WITHDRAW FUNCTIONS ====================
-        async function submitWithdraw(method) {
+        function submitWithdraw(method) {
             let formData = {};
             
             if (method === 'bank') {
@@ -1273,7 +1239,7 @@
                 };
             }
 
-            await DB.addWithdrawRequest(gameState.currentUsername, method, parseInt(formData.amount), formData);
+            DB.addWithdrawRequest(gameState.currentUsername, method, parseInt(formData.amount), formData);
             
             alert(`✅ Yêu cầu rút ${parseInt(formData.amount).toLocaleString()}đ đã được gửi!\n\nVui lòng chờ admin duyệt.`);
             gameState.currentView = 'withdraw-history';
@@ -1379,34 +1345,34 @@
         }
 
         // ==================== ADMIN FUNCTIONS ====================
-        async function approveWithdraw(requestId) {
+        function approveWithdraw(requestId) {
             if (confirm('Xác nhận duyệt yêu cầu này?')) {
-                await DB.updateWithdrawStatus(requestId, 'approved');
+                DB.updateWithdrawStatus(requestId, 'approved');
                 addLog('✅ Đã duyệt yêu cầu rút tiền!', 'success');
                 render();
             }
         }
 
-        async function rejectWithdraw(requestId) {
+        function rejectWithdraw(requestId) {
             if (confirm('Xác nhận từ chối yêu cầu này?')) {
-                await DB.updateWithdrawStatus(requestId, 'rejected');
+                DB.updateWithdrawStatus(requestId, 'rejected');
                 addLog('❌ Đã từ chối yêu cầu rút tiền!', 'error');
                 render();
             }
         }
 
-        async function deleteWithdraw(requestId) {
+        function deleteWithdraw(requestId) {
             if (confirm('Xóa yêu cầu này khỏi danh sách?')) {
-                await DB.deleteWithdrawRequest(requestId);
+                DB.deleteWithdrawRequest(requestId);
                 addLog('🗑️ Đã xóa yêu cầu!', 'info');
                 render();
             }
         }
 
-        async function addAdminUser() {
+        function addAdminUser() {
             const username = prompt('Nhập username để thêm vào Admin:');
             if (username) {
-                const result = await DB.addAdmin(username.trim());
+                const result = DB.addAdmin(username.trim());
                 alert(result.message);
                 if (result.success) {
                     render();
@@ -1414,9 +1380,9 @@
             }
         }
 
-        async function removeAdminUser(username) {
+        function removeAdminUser(username) {
             if (confirm(`Gỡ quyền Admin của ${username}?`)) {
-                const result = await DB.removeAdmin(username);
+                const result = DB.removeAdmin(username);
                 alert(result.message);
                 if (result.success) {
                     render();
@@ -1424,8 +1390,10 @@
             }
         }
 
-        async function showModifyGoldForm() {
-            const allUsers = await DB.getAllUsers();
+        // ===== ADMIN: MODIFY USER GOLD =====
+        function showModifyGoldForm() {
+            // Hiển thị danh sách users để chọn
+            const allUsers = DB.getAllUsers();
             const usernames = Object.keys(allUsers);
             
             if (usernames.length === 0) {
@@ -1443,9 +1411,8 @@
             if (!username) return;
 
             const trimmedUsername = username.trim();
-            const exists = await DB.userExists(trimmedUsername);
 
-            if (!exists) {
+            if (!DB.userExists(trimmedUsername)) {
                 alert(`❌ User "${trimmedUsername}" không tồn tại!\n\nCác user có trong hệ thống:\n${usernames.join(', ')}`);
                 return;
             }
@@ -1461,16 +1428,23 @@
                 return;
             }
 
-            const result = await DB.modifyUserGold(trimmedUsername, amount);
+            console.log('Calling modifyUserGold:', trimmedUsername, amount); // Debug
+            const result = DB.modifyUserGold(trimmedUsername, amount);
             
             if (result.success) {
                 const action = amount > 0 ? 'CỘNG' : 'TRỪ';
                 alert(`✅ Đã ${action} ${Math.abs(amount).toLocaleString()}đ cho ${trimmedUsername}!\n\nSố dư mới: ${result.gold.toLocaleString()}đ`);
                 
+                // Gửi thông báo
                 if (amount > 0) {
-                    await DB.addNotification(`💰 Admin đã cộng cho bạn ${amount.toLocaleString()}đ!`, 'success');
+                    DB.addNotification(`💰 Admin đã cộng cho bạn ${amount.toLocaleString()}đ!`, 'success');
                 } else {
-                    await DB.addNotification(`⚠️ Admin đã trừ ${Math.abs(amount).toLocaleString()}đ từ tài khoản của bạn!`, 'warning');
+                    DB.addNotification(`⚠️ Admin đã trừ ${Math.abs(amount).toLocaleString()}đ từ tài khoản của bạn!`, 'warning');
+                }
+                
+                // Reload player data nếu đang thao tác với user hiện tại
+                if (trimmedUsername === gameState.currentUsername) {
+                    gameState.player = DB.getPlayerData(trimmedUsername);
                 }
                 
                 render();
@@ -1479,7 +1453,8 @@
             }
         }
 
-        async function showSendNotificationForm() {
+        // ===== ADMIN: SEND SERVER NOTIFICATION =====
+        function showSendNotificationForm() {
             const message = prompt('Nhập thông báo gửi toàn server:\n\n(Thông báo sẽ hiển thị cho tất cả người chơi)');
             if (!message || message.trim() === '') {
                 return;
@@ -1496,10 +1471,11 @@
 
             const type = typeMap[typeStr] || 'info';
 
-            await DB.addNotification(message.trim(), type);
+            DB.addNotification(message.trim(), type);
             
             alert('✅ Đã gửi thông báo toàn server!');
             
+            // Cập nhật notification cho chính admin
             checkNotifications();
             render();
         }
@@ -1521,7 +1497,7 @@
                                 <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
                                     GAME RPG ONLINE
                                 </h1>
-                                <p class="text-purple-300">🔥 Firebase Cloud Version</p>
+                                <p class="text-purple-300">Đăng nhập để tiếp tục</p>
                             </div>
 
                             <div class="space-y-4">
@@ -1673,7 +1649,7 @@
                                         : 'bg-gray-600 hover:bg-gray-700'
                                 }"
                             >
-                                ${gameState.autoFight ? '' : ''}
+                                ${gameState.autoFight ? '🔄 Auto ON' : '⏸️ Auto OFF'}
                             </button>
                         </div>
                         
@@ -2085,9 +2061,9 @@
             `;
         }
 
-        async function renderMarketView() {
-            const myListings = await DB.getMyListings(gameState.currentUsername);
-            const othersListings = await DB.getOthersListings(gameState.currentUsername);
+        function renderMarketView() {
+            const myListings = DB.getMyListings(gameState.currentUsername);
+            const othersListings = DB.getOthersListings(gameState.currentUsername);
 
             if (gameState.marketView === 'sell') {
                 const sellableWeapons = gameState.player.ownedWeapons.filter(w => gameState.player.weapon?.name !== w.name);
@@ -2215,7 +2191,7 @@
 
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 font-bold">
-                            ✅ FIREBASE REALTIME - Mua bán tự do giữa các thành viên!
+                            ✅ HOẠT ĐỘNG THẬT - Mua bán tự do giữa các thành viên!
                         </p>
                     </div>
 
@@ -2296,7 +2272,7 @@
                     
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 font-bold text-sm md:text-base">
-                            ✅ FIREBASE REALTIME - Gửi yêu cầu và chờ admin duyệt!
+                            ✅ HỆ THỐNG THẬT - Gửi yêu cầu và chờ admin duyệt!
                         </p>
                         <p class="text-center text-green-200 text-xs mt-2">
                             ⚠️ Trong production thật cần tích hợp Payment Gateway hợp pháp
@@ -2325,8 +2301,8 @@
             `;
         }
 
-        async function renderWithdrawHistoryView() {
-            const userRequests = await DB.getUserWithdrawRequests(gameState.currentUsername);
+        function renderWithdrawHistoryView() {
+            const userRequests = DB.getUserWithdrawRequests(gameState.currentUsername);
             
             return `
                 <div class="max-w-4xl mx-auto">
@@ -2407,17 +2383,17 @@
             `;
         }
 
-        async function renderAdminView() {
-            const allUsers = await DB.getAllUsers();
-            const allRequests = await DB.getAllWithdrawRequests();
-            const allListings = await DB.getAllMarketListings();
-            const allAdmins = await DB.getAllAdmins();
+        function renderAdminView() {
+            const allUsers = DB.getAllUsers();
+            const allRequests = DB.getAllWithdrawRequests();
+            const allListings = DB.getAllMarketListings();
+            const allAdmins = DB.getAllAdmins();
             const pendingRequests = allRequests.filter(r => r.status === 'pending');
 
             return `
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
-                        👑 ADMIN PANEL - FIREBASE REALTIME
+                        👑 ADMIN PANEL
                     </h2>
 
                     <!-- Stats Overview -->
@@ -2632,7 +2608,7 @@
         }
 
         // ==================== MAIN RENDER ====================
-        async function render() {
+        function render() {
             const root = document.getElementById('root');
             
             if (!gameState.isLoggedIn) {
@@ -2641,28 +2617,7 @@
             }
 
             const stats = getTotalStats();
-            const isAdmin = await DB.isAdmin(gameState.currentUsername);
-
-            let viewContent = '';
-            if (gameState.currentView === 'game') {
-                viewContent = renderGameView();
-            } else if (gameState.currentView === 'upgrade') {
-                viewContent = renderUpgradeView();
-            } else if (gameState.currentView === 'shop') {
-                viewContent = renderShopView();
-            } else if (gameState.currentView === 'boss') {
-                viewContent = renderBossView();
-            } else if (gameState.currentView === 'ads') {
-                viewContent = renderAdsView();
-            } else if (gameState.currentView === 'market') {
-                viewContent = await renderMarketView();
-            } else if (gameState.currentView === 'withdraw') {
-                viewContent = renderWithdrawView();
-            } else if (gameState.currentView === 'withdraw-history') {
-                viewContent = await renderWithdrawHistoryView();
-            } else if (gameState.currentView === 'admin' && isAdmin) {
-                viewContent = await renderAdminView();
-            }
+            const isAdmin = DB.isAdmin(gameState.currentUsername);
 
             root.innerHTML = `
                 ${renderNotificationBanner()}
@@ -2772,13 +2727,21 @@
 
                     <!-- Main Content -->
                     <div class="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
-                        ${viewContent}
+                        ${gameState.currentView === 'game' ? renderGameView() : ''}
+                        ${gameState.currentView === 'upgrade' ? renderUpgradeView() : ''}
+                        ${gameState.currentView === 'shop' ? renderShopView() : ''}
+                        ${gameState.currentView === 'boss' ? renderBossView() : ''}
+                        ${gameState.currentView === 'ads' ? renderAdsView() : ''}
+                        ${gameState.currentView === 'market' ? renderMarketView() : ''}
+                        ${gameState.currentView === 'withdraw' ? renderWithdrawView() : ''}
+                        ${gameState.currentView === 'withdraw-history' ? renderWithdrawHistoryView() : ''}
+                        ${gameState.currentView === 'admin' && isAdmin ? renderAdminView() : ''}
                     </div>
 
                     <!-- Footer -->
                     <div class="bg-black/50 border-t border-purple-500/30 mt-8 py-4">
                         <p class="text-center text-purple-300 text-xs md:text-sm">
-                            ⚔️ GAME RPG ONLINE • FIREBASE VERSION • Made with ❤️
+                            ⚔️ GAME RPG ONLINE • FULL VERSION • Made with ❤️
                         </p>
                         <p class="text-center text-purple-400 text-xs mt-1">
                             Hỗ trợ: <a href="https://t.me/NQ_CTV" target="_blank" class="text-blue-400 hover:text-blue-300 underline">@NQ_CTV</a>
@@ -2792,6 +2755,25 @@
 
         // ==================== INITIALIZATION ====================
         function init() {
+            const currentUser = DB.getCurrentUser();
+            if (currentUser) {
+                const playerData = DB.getPlayerData(currentUser);
+                if (playerData) {
+                    gameState.isLoggedIn = true;
+                    gameState.currentUsername = currentUser;
+                    gameState.player = playerData;
+                    
+                    // Kiểm tra thông báo
+                    checkNotifications();
+                    
+                    setTimeout(() => {
+                        if (!gameState.isInBattle && gameState.currentView === 'game') {
+                            startBattle();
+                        }
+                    }, 500);
+                }
+            }
+
             setInterval(() => {
                 if (!gameState.player) return;
                 
