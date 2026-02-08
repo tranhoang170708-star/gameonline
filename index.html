@@ -1,838 +1,1169 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Chiến Binh Huyền Thoại - RPG Online</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+import React, { useState, useEffect } from 'react';
+import { Sword, Shield, Heart, Zap, TrendingUp, ShoppingCart, Users, DollarSign, Gift, Star, Crown, Sparkles, Flame } from 'lucide-react';
+
+const RPGGame = () => {
+  // Load/Save game state
+  const loadGameState = () => {
+    try {
+      const saved = window.storage ? null : localStorage.getItem('rpgGameState');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const [gameStarted, setGameStarted] = useState(false);
+  const [playerName, setPlayerName] = useState('');
+  const [nameError, setNameError] = useState('');
+  
+  // Player stats
+  const [player, setPlayer] = useState({
+    name: '',
+    hp: 100,
+    maxHp: 100,
+    atk: 2,
+    def: 0,
+    crit: 5,
+    gold: 0,
+    level: 1,
+    exp: 0,
+    currentStage: 1,
+    weapon: null,
+    armor: null,
+    pet: null,
+    inventory: [],
+    dailyBosses: 2,
+    weeklyBosses: 3,
+    lastDailyReset: Date.now(),
+    lastWeeklyReset: Date.now(),
+  });
+
+  const [currentView, setCurrentView] = useState('game');
+  const [battleLog, setBattleLog] = useState([]);
+  const [monster, setMonster] = useState(null);
+  const [isInBattle, setIsInBattle] = useState(false);
+  const [playerTurn, setPlayerTurn] = useState(true);
+  const [adBoosts, setAdBoosts] = useState({
+    hp: { active: false, endTime: 0 },
+    atk: { active: false, endTime: 0 },
+    def: { active: false, endTime: 0 }
+  });
+  const [marketListings, setMarketListings] = useState([]);
+  const [tradeTarget, setTradeTarget] = useState('');
+  const [withdrawHistory, setWithdrawHistory] = useState([]);
+
+  // Shops data
+  const weaponShop = [
+    { name: 'Kiếm Gỗ', atk: 20, price: 200, icon: '🪵' },
+    { name: 'Kiếm Đá', atk: 35, price: 500, icon: '🪨' },
+    { name: 'Kiếm Sắt', atk: 50, price: 1000, icon: '⚔️' },
+    { name: 'Kiếm Vàng', atk: 75, price: 2000, icon: '💛' },
+    { name: 'Kiếm Kim Cương', atk: 125, price: 3000, icon: '💎' },
+    { name: 'Kiếm Cầu Vồng', atk: 180, price: 4500, icon: '🌈' },
+    { name: 'Kiếm Thánh', atk: 300, price: 7000, icon: '✨' },
+  ];
+
+  const armorShop = [
+    { name: 'Giáp Vải', def: 3, hp: 50, price: 500, icon: '👕' },
+    { name: 'Giáp Đồng', def: 7, hp: 75, price: 1000, icon: '🥉' },
+    { name: 'Giáp Sắt', def: 10, hp: 100, price: 1500, icon: '🛡️' },
+    { name: 'Giáp Kim Cương', def: 15, hp: 150, price: 3000, icon: '💠' },
+    { name: 'Giáp Thánh', def: 30, hp: 300, price: 5000, icon: '👑' },
+  ];
+
+  const petShop = [
+    { name: 'Gà Con', atkBonus: 5, price: 500, icon: '🐔' },
+    { name: 'Chó Con', atkBonus: 8, price: 1000, icon: '🐕' },
+    { name: 'Sói Xám', atkBonus: 13, price: 1500, icon: '🐺' },
+    { name: 'Voi Ma Mút', atkBonus: 20, price: 2300, icon: '🐘' },
+    { name: 'Rồng Thần', atkBonus: 30, price: 3500, icon: '🐉' },
+  ];
+
+  // Load game on mount
+  useEffect(() => {
+    const savedState = loadGameState();
+    if (savedState && savedState.name) {
+      setPlayer(savedState);
+      setGameStarted(true);
+    }
+  }, []);
+
+  // Save game
+  const saveGame = (newPlayerState) => {
+    try {
+      localStorage.setItem('rpgGameState', JSON.stringify(newPlayerState));
+    } catch (e) {
+      console.error('Could not save game', e);
+    }
+  };
+
+  // Reset daily/weekly bosses
+  useEffect(() => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const weekMs = 7 * dayMs;
+
+    let updated = false;
+    let newPlayer = { ...player };
+
+    if (now - player.lastDailyReset > dayMs) {
+      newPlayer.dailyBosses = 2;
+      newPlayer.lastDailyReset = now;
+      updated = true;
+    }
+
+    if (now - player.lastWeeklyReset > weekMs) {
+      newPlayer.weeklyBosses = 3;
+      newPlayer.lastWeeklyReset = now;
+      updated = true;
+    }
+
+    if (updated) {
+      setPlayer(newPlayer);
+      saveGame(newPlayer);
+    }
+  }, [player]);
+
+  // Character creation
+  const handleCreateCharacter = () => {
+    if (playerName.length < 5) {
+      setNameError('Tên phải có ít nhất 5 ký tự!');
+      return;
+    }
     
-    <style>
-        :root {
-            --primary: #ff9f1c; /* Cam vàng */
-            --bg: #1a1a2e; /* Xanh đen tối */
-            --panel: #16213e; /* Panel tối */
-            --accent: #e94560; /* Đỏ hồng */
-            --text: #ffffff;
-            --success: #2ec4b6;
-        }
+    const hasNumber = /\d/.test(playerName);
+    if (!hasNumber) {
+      setNameError('Tên phải có ít nhất 1 chữ số!');
+      return;
+    }
 
-        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
-        
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
+    const newPlayer = {
+      ...player,
+      name: playerName,
+    };
+    
+    setPlayer(newPlayer);
+    setGameStarted(true);
+    saveGame(newPlayer);
+  };
 
-        /* --- Login Screen --- */
-        #login-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        #login-screen input {
-            padding: 15px;
-            font-size: 18px;
-            width: 80%;
-            border-radius: 10px;
-            border: 2px solid var(--primary);
-            background: #0f3460;
-            color: white;
-            margin-bottom: 20px;
-        }
+  // Calculate total stats
+  const getTotalStats = () => {
+    let totalAtk = player.atk;
+    let totalDef = player.def;
+    let totalHp = player.maxHp;
+    let totalCrit = player.crit;
 
-        /* --- Main UI --- */
-        .header {
-            background: var(--panel);
-            padding: 10px;
-            border-bottom: 2px solid var(--accent);
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5px;
-            font-size: 14px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            z-index: 100;
-        }
-        .header div { font-weight: bold; }
-        .currency { color: var(--primary); font-size: 16px; grid-column: span 2; text-align: center; margin-top: 5px; }
+    if (player.weapon) totalAtk += player.weapon.atk;
+    if (player.armor) {
+      totalDef += player.armor.def;
+      totalHp += player.armor.hp;
+    }
+    if (player.pet) {
+      totalAtk += Math.floor(totalAtk * (player.pet.atkBonus / 100));
+    }
 
-        /* --- Battle Area --- */
-        .battle-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            background: radial-gradient(circle at center, #252540 0%, #1a1a2e 100%);
-            overflow: hidden;
-        }
+    // Ad boosts
+    if (adBoosts.hp.active && Date.now() < adBoosts.hp.endTime) totalHp += 100;
+    if (adBoosts.atk.active && Date.now() < adBoosts.atk.endTime) totalAtk += 75;
+    if (adBoosts.def.active && Date.now() < adBoosts.def.endTime) totalDef += 10;
 
-        .enemy-container {
-            position: relative;
-            cursor: pointer;
-            transition: transform 0.1s;
-        }
-        .enemy-container:active { transform: scale(0.95); }
-        .enemy-img { font-size: 100px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.3)); }
-        
-        .hp-bar-box {
-            width: 70%; height: 20px; background: #333;
-            border-radius: 10px; margin-top: 15px; border: 2px solid #fff;
-            position: relative; overflow: hidden;
-        }
-        .hp-fill {
-            height: 100%; background: var(--accent); width: 100%;
-            transition: width 0.2s ease-out;
-        }
-        .stage-info {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 20px; font-size: 12px;
-        }
+    return { totalAtk, totalDef, totalHp, totalCrit };
+  };
 
-        /* --- Damage Numbers --- */
-        .dmg-popup {
-            position: absolute; font-weight: bold; font-size: 24px;
-            color: white; animation: floatUp 0.8s forwards; pointer-events: none;
-            text-shadow: 2px 2px 0 #000;
-        }
-        .crit { color: #ffff00; font-size: 32px; text-shadow: 0 0 10px red; }
-        @keyframes floatUp { to { transform: translateY(-80px); opacity: 0; } }
+  // Generate monster
+  const generateMonster = (stage, isBoss = false, bossType = 'normal') => {
+    const baseHp = 30 + stage * 15;
+    const baseAtk = 1 + stage * 0.5;
+    
+    let hp = baseHp;
+    let atk = baseAtk;
+    let goldReward = 10 + stage * 5;
+    let expReward = 20 + stage * 10;
+    let name = `Quái Vật Lv.${stage}`;
+    let icon = '👾';
 
-        /* --- Footer Navigation --- */
-        .footer-nav {
-            background: var(--panel);
-            display: flex;
-            overflow-x: auto;
-            border-top: 1px solid #333;
-            padding-bottom: 5px;
-        }
-        .nav-btn {
-            flex: 1; min-width: 70px;
-            padding: 10px 5px;
-            background: none; border: none;
-            color: #888; font-size: 12px;
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .nav-btn i { font-size: 20px; margin-bottom: 5px; }
-        .nav-btn.active { color: var(--primary); background: rgba(255,255,255,0.05); }
+    if (isBoss) {
+      if (bossType === 'stage') {
+        hp = baseHp * 1.5;
+        atk = baseAtk * 1.2;
+        goldReward *= 2;
+        expReward *= 2;
+        name = `Boss Ải ${Math.floor(stage / 10) + 1}`;
+        icon = '👹';
+      } else if (bossType === 'daily') {
+        hp = baseHp * 3;
+        atk = baseAtk * 2;
+        goldReward *= 5;
+        expReward *= 3;
+        name = `Boss Ngày`;
+        icon = '🔥';
+      } else if (bossType === 'weekly') {
+        hp = baseHp * 5;
+        atk = baseAtk * 3;
+        goldReward *= 10;
+        expReward *= 5;
+        name = `Boss Tuần`;
+        icon = '⚡';
+      }
+    }
 
-        /* --- Panels (Tabs) --- */
-        .panel-content {
-            position: absolute;
-            top: 75px; bottom: 60px; left: 0; width: 100%;
-            background: rgba(26, 26, 46, 0.95);
-            backdrop-filter: blur(5px);
-            z-index: 50;
-            display: none;
-            overflow-y: auto;
-            padding: 15px;
-        }
-        .panel-content.active { display: block; animation: slideIn 0.3s; }
-        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    return {
+      name,
+      icon,
+      hp: Math.floor(hp),
+      maxHp: Math.floor(hp),
+      atk: Math.floor(atk),
+      goldReward: Math.floor(goldReward),
+      expReward: Math.floor(expReward),
+      stage,
+      isBoss,
+      bossType
+    };
+  };
 
-        h2 { color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px; margin-top: 0; }
-        
-        /* --- Items & Buttons --- */
-        .item-row {
-            background: #233050; margin-bottom: 10px; padding: 10px;
-            border-radius: 8px; display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid #30475e;
-        }
-        .btn {
-            background: var(--accent); color: white; border: none;
-            padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer;
-        }
-        .btn-green { background: var(--success); }
-        .btn-blue { background: #007bff; }
-        .btn:disabled { background: #555; opacity: 0.7; }
-        
-        .ad-timer { font-size: 12px; color: #aaa; margin-top: 5px; }
-        
-        /* --- Withdraw & History --- */
-        .history-item { font-size: 12px; border-bottom: 1px dashed #555; padding: 5px 0; }
-        input, select { width: 100%; padding: 10px; background: #0f3460; border: 1px solid #444; color: white; margin: 5px 0; border-radius: 5px; }
+  // Start battle
+  const startBattle = (bossType = null) => {
+    const isBoss = bossType !== null;
+    let newMonster;
 
-    </style>
-</head>
-<body>
+    if (bossType === 'daily') {
+      if (player.dailyBosses <= 0) {
+        addLog('⚠️ Bạn đã hết lượt đánh Boss Ngày!', 'error');
+        return;
+      }
+      newMonster = generateMonster(player.currentStage, true, 'daily');
+    } else if (bossType === 'weekly') {
+      if (player.weeklyBosses <= 0) {
+        addLog('⚠️ Bạn đã hết lượt đánh Boss Tuần!', 'error');
+        return;
+      }
+      newMonster = generateMonster(player.currentStage, true, 'weekly');
+    } else {
+      const isStageBoss = player.currentStage % 10 === 0;
+      newMonster = generateMonster(player.currentStage, isStageBoss, isStageBoss ? 'stage' : null);
+    }
 
-    <div id="login-screen">
-        <h1 style="color: var(--primary); text-shadow: 0 0 10px orange;">GAME ONLINE</h1>
-        <p>Nhập tên nhân vật (Tối thiểu 5 ký tự)</p>
-        <input type="text" id="player-name-input" placeholder="Ví dụ: Player123">
-        <button class="btn btn-green" style="width: 80%; padding: 15px;" onclick="startGame()">BẮT ĐẦU PHIÊU LƯU</button>
-    </div>
+    setMonster(newMonster);
+    setIsInBattle(true);
+    setPlayerTurn(true);
+    setBattleLog([]);
+    addLog(`⚔️ Chiến đấu với ${newMonster.icon} ${newMonster.name}!`, 'info');
+  };
 
-    <div class="header">
-        <div>👤 <span id="ui-name">Player</span></div>
-        <div style="text-align: right;">❤️ <span id="ui-hp">100</span>/<span id="ui-maxhp">100</span></div>
-        <div>⚔️ <span id="ui-atk">2</span> | 🎯 <span id="ui-crit">5</span>%</div>
-        <div style="text-align: right;">🛡️ <span id="ui-def">0</span></div>
-        <div class="currency">💰 <span id="ui-coin">0</span> Đ</div>
-    </div>
+  // Add log
+  const addLog = (message, type = 'info') => {
+    setBattleLog(prev => [...prev, { message, type, time: Date.now() }].slice(-10));
+  };
 
-    <div id="buff-bar" style="background: #333; padding: 5px; font-size: 11px; text-align: center; color: #0f0; display:none;">
-        🔥 Đang có Buff Quảng Cáo!
-    </div>
+  // Player attack
+  const playerAttack = () => {
+    if (!playerTurn || !monster) return;
 
-    <div class="battle-area" id="battle-area">
-        <div class="stage-info">Ải: <span id="ui-stage">1</span> | Quái: <span id="ui-mob-count">1</span>/10</div>
-        
-        <div class="enemy-container" onclick="playerAttack(event)">
-            <div class="enemy-img" id="enemy-sprite">👾</div>
-        </div>
+    const stats = getTotalStats();
+    const isCrit = Math.random() * 100 < stats.totalCrit;
+    let damage = stats.totalAtk;
+    if (isCrit) damage *= 2;
 
-        <h3 id="enemy-name" style="margin-bottom: 5px;">Quái Thường</h3>
-        <div class="hp-bar-box">
-            <div class="hp-fill" id="enemy-hp-bar"></div>
-        </div>
-        <div style="margin-top: 5px;"><span id="enemy-hp">100</span> HP</div>
-    </div>
+    const newMonster = { ...monster, hp: Math.max(0, monster.hp - damage) };
+    setMonster(newMonster);
 
-    <div id="tab-upgrade" class="panel-content">
-        <h2>⬆️ Nâng Cấp Nhân Vật</h2>
-        <div class="item-row">
+    addLog(`💥 Bạn gây ${damage} sát thương${isCrit ? ' (CHÍ MẠNG!)' : ''}`, 'success');
+
+    if (newMonster.hp <= 0) {
+      handleVictory(newMonster);
+    } else {
+      setPlayerTurn(false);
+      setTimeout(monsterAttack, 1000);
+    }
+  };
+
+  // Monster attack
+  const monsterAttack = () => {
+    if (!monster) return;
+
+    const stats = getTotalStats();
+    const damage = Math.max(1, monster.atk - stats.totalDef);
+    const newHp = Math.max(0, player.hp - damage);
+
+    setPlayer(prev => ({ ...prev, hp: newHp }));
+    addLog(`🔴 ${monster.name} gây ${damage} sát thương!`, 'error');
+
+    if (newHp <= 0) {
+      handleDefeat();
+    } else {
+      setPlayerTurn(true);
+    }
+  };
+
+  // Victory
+  const handleVictory = (defeatedMonster) => {
+    const newGold = player.gold + defeatedMonster.goldReward;
+    const newExp = player.exp + defeatedMonster.expReward;
+    const expToLevel = player.level * 100;
+    
+    let newLevel = player.level;
+    let remainingExp = newExp;
+    let newAtk = player.atk;
+    let newMaxHp = player.maxHp;
+
+    while (remainingExp >= expToLevel) {
+      remainingExp -= expToLevel;
+      newLevel++;
+      newAtk += 2;
+      newMaxHp += 10;
+    }
+
+    let updatedPlayer = {
+      ...player,
+      gold: newGold,
+      exp: remainingExp,
+      level: newLevel,
+      atk: newAtk,
+      maxHp: newMaxHp,
+      hp: player.maxHp, // Full heal after battle
+    };
+
+    // Boss specific updates
+    if (defeatedMonster.bossType === 'daily') {
+      updatedPlayer.dailyBosses--;
+    } else if (defeatedMonster.bossType === 'weekly') {
+      updatedPlayer.weeklyBosses--;
+    } else if (!defeatedMonster.isBoss) {
+      updatedPlayer.currentStage++;
+    }
+
+    setPlayer(updatedPlayer);
+    saveGame(updatedPlayer);
+
+    addLog(`🎉 Chiến thắng! +${defeatedMonster.goldReward}💰 +${defeatedMonster.expReward}⭐`, 'success');
+    if (newLevel > player.level) {
+      addLog(`🆙 Level Up! Lv.${newLevel}`, 'success');
+    }
+
+    setIsInBattle(false);
+    setMonster(null);
+  };
+
+  // Defeat
+  const handleDefeat = () => {
+    addLog('💀 Bạn đã thua! -50% vàng', 'error');
+    const newGold = Math.floor(player.gold * 0.5);
+    const updatedPlayer = {
+      ...player,
+      gold: newGold,
+      hp: player.maxHp
+    };
+    setPlayer(updatedPlayer);
+    saveGame(updatedPlayer);
+    setIsInBattle(false);
+    setMonster(null);
+  };
+
+  // Buy item
+  const buyItem = (item, type) => {
+    if (player.gold < item.price) {
+      addLog('⚠️ Không đủ vàng!', 'error');
+      return;
+    }
+
+    const updatedPlayer = { ...player, gold: player.gold - item.price };
+    
+    if (type === 'weapon') updatedPlayer.weapon = item;
+    else if (type === 'armor') {
+      updatedPlayer.armor = item;
+      updatedPlayer.maxHp = player.maxHp + item.hp;
+      updatedPlayer.hp = updatedPlayer.maxHp;
+    }
+    else if (type === 'pet') updatedPlayer.pet = item;
+
+    setPlayer(updatedPlayer);
+    saveGame(updatedPlayer);
+    addLog(`✅ Đã mua ${item.icon} ${item.name}!`, 'success');
+  };
+
+  // Upgrade stats
+  const upgradeStats = (stat) => {
+    const costs = {
+      atk: 100 + player.atk * 50,
+      hp: 150 + player.maxHp * 2,
+      crit: 200 + player.crit * 100
+    };
+
+    if (player.gold < costs[stat]) {
+      addLog('⚠️ Không đủ vàng để nâng cấp!', 'error');
+      return;
+    }
+
+    const updatedPlayer = { ...player, gold: player.gold - costs[stat] };
+    
+    if (stat === 'atk') updatedPlayer.atk += 5;
+    else if (stat === 'hp') {
+      updatedPlayer.maxHp += 20;
+      updatedPlayer.hp = updatedPlayer.maxHp;
+    }
+    else if (stat === 'crit') updatedPlayer.crit += 2;
+
+    setPlayer(updatedPlayer);
+    saveGame(updatedPlayer);
+    addLog(`⬆️ Đã nâng cấp ${stat.toUpperCase()}!`, 'success');
+  };
+
+  // Watch ad (placeholder)
+  const watchAd = (type) => {
+    // PLACEHOLDER: Tích hợp Adsterra.com ở đây
+    // Khi có backend, gọi API Adsterra để hiển thị quảng cáo
+    addLog('📺 Đang xem quảng cáo... (Demo mode)', 'info');
+    
+    setTimeout(() => {
+      const endTime = Date.now() + 10 * 60 * 1000; // 10 minutes
+      
+      if (type === 'hp' || type === 'atk' || type === 'def') {
+        setAdBoosts(prev => ({
+          ...prev,
+          [type]: { active: true, endTime }
+        }));
+        addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
+      } else if (type === 'coin50' || type === 'coin100') {
+        const bonus = type === 'coin50' ? 50 : 100;
+        const updatedPlayer = { ...player, gold: player.gold + bonus };
+        setPlayer(updatedPlayer);
+        saveGame(updatedPlayer);
+        addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
+      }
+    }, 2000);
+  };
+
+  // Withdraw money (placeholder)
+  const handleWithdraw = (method, amount, details) => {
+    // PLACEHOLDER: Cần backend và giấy phép hợp pháp
+    // Đây chỉ là giao diện demo
+    if (amount < (method === 'card' ? 10000 : 20000)) {
+      addLog('⚠️ Số tiền rút tối thiểu không đủ!', 'error');
+      return;
+    }
+
+    if (player.gold < amount) {
+      addLog('⚠️ Không đủ vàng để rút!', 'error');
+      return;
+    }
+
+    const withdrawal = {
+      id: Date.now(),
+      method,
+      amount,
+      details,
+      status: 'pending', // Cần admin duyệt
+      date: new Date().toLocaleString('vi-VN')
+    };
+
+    setWithdrawHistory(prev => [withdrawal, ...prev]);
+    const updatedPlayer = { ...player, gold: player.gold - amount };
+    setPlayer(updatedPlayer);
+    saveGame(updatedPlayer);
+    
+    addLog('✅ Yêu cầu rút tiền đã gửi! Chờ xử lý...', 'success');
+    setCurrentView('withdraw-history');
+  };
+
+  // Character creation screen
+  if (!gameStarted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-8 flex items-center justify-center">
+        <div className="max-w-md w-full bg-gradient-to-br from-purple-800/50 to-blue-800/50 backdrop-blur-lg rounded-3xl p-8 shadow-2xl border border-purple-500/30">
+          <div className="text-center mb-8">
+            <h1 className="text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+              ⚔️ RPG ONLINE ⚔️
+            </h1>
+            <p className="text-purple-300">Bắt đầu hành trình của bạn!</p>
+          </div>
+
+          <div className="space-y-4">
             <div>
-                <b>Luyện Kiếm (ATK)</b><br><small>Tăng sức tấn công</small>
+              <label className="block text-sm font-bold mb-2 text-purple-200">Tên Nhân Vật</label>
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => {
+                  setPlayerName(e.target.value);
+                  setNameError('');
+                }}
+                placeholder="Tối thiểu 5 ký tự + số"
+                className="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+              />
+              {nameError && <p className="text-red-400 text-sm mt-2">⚠️ {nameError}</p>}
             </div>
-            <button class="btn" onclick="upgradeStat('atk')"><span id="cost-atk">100</span>Đ</button>
+
+            <div className="bg-black/30 rounded-xl p-4 border border-purple-500/30">
+              <h3 className="font-bold mb-3 text-yellow-400">📊 Stats Bắt Đầu:</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-red-500" />
+                  <span>HP: 100</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Sword className="w-4 h-4 text-orange-500" />
+                  <span>ATK: 2</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-blue-500" />
+                  <span>DEF: 0</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-yellow-500" />
+                  <span>CRIT: 5%</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleCreateCharacter}
+              className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              🎮 BẮT ĐẦU PHIÊU LƯU
+            </button>
+          </div>
         </div>
-        <div class="item-row">
+      </div>
+    );
+  }
+
+  const stats = getTotalStats();
+
+  // Main game UI
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-900/80 to-blue-900/80 backdrop-blur-lg border-b-2 border-purple-500/30 shadow-xl">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-                <b>Rèn Thể Lực (HP)</b><br><small>Tăng máu tối đa</small>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                👤 {player.name}
+              </h1>
+              <p className="text-sm text-purple-300">Level {player.level} • Ải {player.currentStage}</p>
             </div>
-            <button class="btn" onclick="upgradeStat('hp')"><span id="cost-hp">100</span>Đ</button>
+            
+            <div className="flex gap-4 flex-wrap">
+              <div className="bg-black/30 px-4 py-2 rounded-lg border border-yellow-500/30">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">💰</span>
+                  <span className="font-bold text-yellow-400">{player.gold.toLocaleString()}</span>
+                </div>
+              </div>
+              
+              <div className="bg-black/30 px-4 py-2 rounded-lg border border-blue-500/30">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-blue-400" />
+                  <span className="font-bold">{player.exp}/{player.level * 100}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="bg-red-900/30 px-3 py-2 rounded-lg border border-red-500/30">
+              <div className="flex items-center justify-between text-sm">
+                <Heart className="w-4 h-4" />
+                <span className="font-bold">{player.hp}/{stats.totalHp}</span>
+              </div>
+            </div>
+            <div className="bg-orange-900/30 px-3 py-2 rounded-lg border border-orange-500/30">
+              <div className="flex items-center justify-between text-sm">
+                <Sword className="w-4 h-4" />
+                <span className="font-bold">ATK: {stats.totalAtk}</span>
+              </div>
+            </div>
+            <div className="bg-blue-900/30 px-3 py-2 rounded-lg border border-blue-500/30">
+              <div className="flex items-center justify-between text-sm">
+                <Shield className="w-4 h-4" />
+                <span className="font-bold">DEF: {stats.totalDef}</span>
+              </div>
+            </div>
+            <div className="bg-yellow-900/30 px-3 py-2 rounded-lg border border-yellow-500/30">
+              <div className="flex items-center justify-between text-sm">
+                <Zap className="w-4 h-4" />
+                <span className="font-bold">CRIT: {stats.totalCrit}%</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="item-row">
+      </div>
+
+      {/* Navigation */}
+      <div className="bg-black/30 border-b border-purple-500/30">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex gap-2 overflow-x-auto py-2">
+            {[
+              { id: 'game', label: '⚔️ Chiến Đấu', icon: Sword },
+              { id: 'upgrade', label: '⬆️ Nâng Cấp', icon: TrendingUp },
+              { id: 'shop', label: '🛒 Cửa Hàng', icon: ShoppingCart },
+              { id: 'boss', label: '👑 Boss', icon: Crown },
+              { id: 'ads', label: '📺 Quảng Cáo', icon: Gift },
+              { id: 'market', label: '🏪 Chợ', icon: Users },
+              { id: 'withdraw', label: '💵 Rút Tiền', icon: DollarSign },
+            ].map(nav => (
+              <button
+                key={nav.id}
+                onClick={() => setCurrentView(nav.id)}
+                className={`px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-all ${
+                  currentView === nav.id
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 shadow-lg'
+                    : 'bg-purple-800/30 hover:bg-purple-700/50'
+                }`}
+              >
+                {nav.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* GAME VIEW */}
+        {currentView === 'game' && (
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Battle Arena */}
+            <div className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-6 border-2 border-purple-500/30 shadow-xl">
+              <h2 className="text-2xl font-bold mb-4 text-center bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                ⚔️ Chiến Trường
+              </h2>
+              
+              {!isInBattle ? (
+                <div className="text-center space-y-4">
+                  <div className="text-6xl mb-4 animate-bounce">🏰</div>
+                  <p className="text-purple-300 mb-4">Sẵn sàng chiến đấu?</p>
+                  <button
+                    onClick={() => startBattle()}
+                    className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all"
+                  >
+                    ⚔️ BẮT ĐẦU CHIẾN ĐẤU
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Monster */}
+                  <div className="bg-red-900/30 rounded-xl p-4 border-2 border-red-500/50">
+                    <div className="text-center">
+                      <div className="text-6xl mb-2">{monster.icon}</div>
+                      <h3 className="font-bold text-xl text-red-300">{monster.name}</h3>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <Heart className="w-4 h-4 text-red-500" />
+                          <span className="font-bold">{monster.hp}/{monster.maxHp}</span>
+                        </div>
+                        <div className="w-full bg-black/50 rounded-full h-3 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-red-600 to-pink-500 h-full transition-all duration-300"
+                            style={{ width: `${(monster.hp / monster.maxHp) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* VS */}
+                  <div className="text-center">
+                    <span className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent">
+                      ⚡ VS ⚡
+                    </span>
+                  </div>
+
+                  {/* Player in battle */}
+                  <div className="bg-blue-900/30 rounded-xl p-4 border-2 border-blue-500/50">
+                    <div className="text-center">
+                      <div className="text-6xl mb-2">🛡️</div>
+                      <h3 className="font-bold text-xl text-blue-300">{player.name}</h3>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <Heart className="w-4 h-4 text-red-500" />
+                          <span className="font-bold">{player.hp}/{stats.totalHp}</span>
+                        </div>
+                        <div className="w-full bg-black/50 rounded-full h-3 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-green-600 to-emerald-500 h-full transition-all duration-300"
+                            style={{ width: `${(player.hp / stats.totalHp) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Attack Button */}
+                  <button
+                    onClick={playerAttack}
+                    disabled={!playerTurn}
+                    className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                      playerTurn
+                        ? 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 hover:scale-105'
+                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    {playerTurn ? '⚔️ TẤN CÔNG!' : '⏳ Đợi lượt...'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Battle Log & Equipment */}
+            <div className="space-y-6">
+              {/* Battle Log */}
+              <div className="bg-black/50 rounded-2xl p-6 border-2 border-purple-500/30">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-yellow-400" />
+                  Nhật Ký Chiến Đấu
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {battleLog.length === 0 ? (
+                    <p className="text-purple-300 text-center py-4">Chưa có trận chiến nào...</p>
+                  ) : (
+                    battleLog.map((log, i) => (
+                      <div
+                        key={i}
+                        className={`p-2 rounded-lg text-sm ${
+                          log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                          log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                          'bg-blue-900/30 text-blue-300'
+                        }`}
+                      >
+                        {log.message}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Equipment */}
+              <div className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-6 border-2 border-purple-500/30">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Crown className="w-5 h-5 text-yellow-400" />
+                  Trang Bị
+                </h3>
+                <div className="space-y-3">
+                  <div className="bg-black/30 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-300">⚔️ Vũ Khí:</span>
+                      <span className="font-bold">{player.weapon ? `${player.weapon.icon} ${player.weapon.name}` : 'Chưa có'}</span>
+                    </div>
+                  </div>
+                  <div className="bg-black/30 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-300">🛡️ Giáp:</span>
+                      <span className="font-bold">{player.armor ? `${player.armor.icon} ${player.armor.name}` : 'Chưa có'}</span>
+                    </div>
+                  </div>
+                  <div className="bg-black/30 p-3 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-300">🐾 Pet:</span>
+                      <span className="font-bold">{player.pet ? `${player.pet.icon} ${player.pet.name}` : 'Chưa có'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* UPGRADE VIEW */}
+        {currentView === 'upgrade' && (
+          <div className="max-w-3xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+              ⬆️ NÂNG CẤP NHÂN VẬT
+            </h2>
+            <div className="grid md:grid-cols-3 gap-4">
+              {[
+                { stat: 'atk', label: 'Sức Mạnh', icon: '⚔️', current: player.atk, bonus: '+5 ATK', color: 'from-orange-500 to-red-600' },
+                { stat: 'hp', label: 'Máu', icon: '❤️', current: player.maxHp, bonus: '+20 HP', color: 'from-red-500 to-pink-600' },
+                { stat: 'crit', label: 'Chí Mạng', icon: '⚡', current: player.crit, bonus: '+2% CRIT', color: 'from-yellow-500 to-orange-600' }
+              ].map(item => (
+                <div key={item.stat} className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-6 border-2 border-purple-500/30">
+                  <div className="text-center mb-4">
+                    <div className="text-5xl mb-2">{item.icon}</div>
+                    <h3 className="font-bold text-xl">{item.label}</h3>
+                    <p className="text-purple-300 text-sm mt-1">Hiện tại: {item.current}</p>
+                  </div>
+                  <button
+                    onClick={() => upgradeStats(item.stat)}
+                    className={`w-full py-3 bg-gradient-to-r ${item.color} hover:scale-105 rounded-xl font-bold shadow-lg transform transition-all`}
+                  >
+                    {item.bonus}
+                    <div className="text-sm mt-1">💰 {(100 + player[item.stat === 'hp' ? 'maxHp' : item.stat] * (item.stat === 'atk' ? 50 : item.stat === 'hp' ? 2 : 100)).toLocaleString()}</div>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SHOP VIEW */}
+        {currentView === 'shop' && (
+          <div className="space-y-8">
+            {/* Weapon Shop */}
             <div>
-                <b>Tập Trung (Crit)</b><br><small>Tăng tỉ lệ chí mạng</small>
+              <h2 className="text-3xl font-bold mb-4 text-center bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                ⚔️ CỬA HÀNG VŨ KHÍ
+              </h2>
+              <div className="grid md:grid-cols-4 gap-4">
+                {weaponShop.map(weapon => (
+                  <div key={weapon.name} className="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-4 border-2 border-orange-500/30 hover:border-orange-400 transition-all hover:scale-105">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">{weapon.icon}</div>
+                      <h3 className="font-bold">{weapon.name}</h3>
+                      <p className="text-orange-300 text-sm">+{weapon.atk} ATK</p>
+                      <button
+                        onClick={() => buyItem(weapon, 'weapon')}
+                        disabled={player.weapon?.name === weapon.name}
+                        className={`mt-3 w-full py-2 rounded-lg font-bold text-sm ${
+                          player.weapon?.name === weapon.name
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700'
+                        }`}
+                      >
+                        {player.weapon?.name === weapon.name ? '✓ Đang dùng' : `💰 ${weapon.price}`}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <button class="btn" onclick="upgradeStat('crit')"><span id="cost-crit">200</span>Đ</button>
-        </div>
+
+            {/* Armor Shop */}
+            <div>
+              <h2 className="text-3xl font-bold mb-4 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                🛡️ CỬA HÀNG GIÁP
+              </h2>
+              <div className="grid md:grid-cols-5 gap-4">
+                {armorShop.map(armor => (
+                  <div key={armor.name} className="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-4 border-2 border-blue-500/30 hover:border-blue-400 transition-all hover:scale-105">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">{armor.icon}</div>
+                      <h3 className="font-bold text-sm">{armor.name}</h3>
+                      <p className="text-blue-300 text-xs">+{armor.def} DEF</p>
+                      <p className="text-red-300 text-xs">+{armor.hp} HP</p>
+                      <button
+                        onClick={() => buyItem(armor, 'armor')}
+                        disabled={player.armor?.name === armor.name}
+                        className={`mt-3 w-full py-2 rounded-lg font-bold text-sm ${
+                          player.armor?.name === armor.name
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                        }`}
+                      >
+                        {player.armor?.name === armor.name ? '✓ Đang dùng' : `💰 ${armor.price}`}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Pet Shop */}
+            <div>
+              <h2 className="text-3xl font-bold mb-4 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                🐾 CỬA HÀNG PET
+              </h2>
+              <div className="grid md:grid-cols-5 gap-4">
+                {petShop.map(pet => (
+                  <div key={pet.name} className="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-4 border-2 border-green-500/30 hover:border-green-400 transition-all hover:scale-105">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">{pet.icon}</div>
+                      <h3 className="font-bold text-sm">{pet.name}</h3>
+                      <p className="text-green-300 text-xs">+{pet.atkBonus}% ATK</p>
+                      <button
+                        onClick={() => buyItem(pet, 'pet')}
+                        disabled={player.pet?.name === pet.name}
+                        className={`mt-3 w-full py-2 rounded-lg font-bold text-sm ${
+                          player.pet?.name === pet.name
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
+                        }`}
+                      >
+                        {player.pet?.name === pet.name ? '✓ Đang dùng' : `💰 ${pet.price}`}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BOSS VIEW */}
+        {currentView === 'boss' && (
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
+              👑 BOSS TỰ CHỌN
+            </h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Daily Boss */}
+              <div className="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-2xl p-6 border-2 border-red-500/30">
+                <div className="text-center mb-4">
+                  <div className="text-6xl mb-2">🔥</div>
+                  <h3 className="text-2xl font-bold text-red-300">BOSS NGÀY</h3>
+                  <p className="text-sm text-orange-300 mt-2">Phần thưởng x5 Vàng!</p>
+                </div>
+                <div className="bg-black/30 rounded-lg p-3 mb-4">
+                  <p className="text-center">Lượt còn lại: <span className="font-bold text-yellow-400">{player.dailyBosses}/2</span></p>
+                </div>
+                <button
+                  onClick={() => startBattle('daily')}
+                  disabled={player.dailyBosses <= 0}
+                  className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                    player.dailyBosses > 0
+                      ? 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 hover:scale-105'
+                      : 'bg-gray-600 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  {player.dailyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
+                </button>
+              </div>
+
+              {/* Weekly Boss */}
+              <div className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-6 border-2 border-purple-500/30">
+                <div className="text-center mb-4">
+                  <div className="text-6xl mb-2">⚡</div>
+                  <h3 className="text-2xl font-bold text-purple-300">BOSS TUẦN</h3>
+                  <p className="text-sm text-pink-300 mt-2">Phần thưởng x10 Vàng!</p>
+                </div>
+                <div className="bg-black/30 rounded-lg p-3 mb-4">
+                  <p className="text-center">Lượt còn lại: <span className="font-bold text-yellow-400">{player.weeklyBosses}/3</span></p>
+                </div>
+                <button
+                  onClick={() => startBattle('weekly')}
+                  disabled={player.weeklyBosses <= 0}
+                  className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                    player.weeklyBosses > 0
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:scale-105'
+                      : 'bg-gray-600 cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  {player.weeklyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADS VIEW */}
+        {currentView === 'ads' && (
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+              📺 XEM QUẢNG CÁO NHẬN THƯỞNG
+            </h2>
+            
+            <div className="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-4 mb-6">
+              <p className="text-center text-yellow-300">
+                ⚠️ <strong>DEMO MODE:</strong> Tích hợp Adsterra.com cần backend server thật
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Stat Boosts */}
+              <div className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30">
+                <h3 className="text-xl font-bold mb-4">⚡ BUFF STATS (10 phút)</h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  {[
+                    { type: 'hp', label: '+100 HP', icon: '❤️', color: 'from-red-500 to-pink-600' },
+                    { type: 'atk', label: '+75 ATK', icon: '⚔️', color: 'from-orange-500 to-red-600' },
+                    { type: 'def', label: '+10 DEF', icon: '🛡️', color: 'from-blue-500 to-purple-600' }
+                  ].map(boost => (
+                    <button
+                      key={boost.type}
+                      onClick={() => watchAd(boost.type)}
+                      disabled={adBoosts[boost.type].active && Date.now() < adBoosts[boost.type].endTime}
+                      className={`py-4 rounded-xl font-bold bg-gradient-to-r ${boost.color} hover:scale-105 transform transition-all ${
+                        adBoosts[boost.type].active && Date.now() < adBoosts[boost.type].endTime ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">{boost.icon}</div>
+                      <div>{boost.label}</div>
+                      {adBoosts[boost.type].active && Date.now() < adBoosts[boost.type].endTime && (
+                        <div className="text-xs mt-1">⏳ Đang hoạt động</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Coin Rewards */}
+              <div className="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-6 border-2 border-yellow-500/30">
+                <h3 className="text-xl font-bold mb-4">💰 NHẬN VÀNG</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <button
+                    onClick={() => watchAd('coin50')}
+                    className="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
+                  >
+                    <div className="text-2xl mb-1">💰</div>
+                    <div>+50 Vàng</div>
+                    <div className="text-xs mt-1">(1 QC)</div>
+                  </button>
+                  <button
+                    onClick={() => watchAd('coin100')}
+                    className="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
+                  >
+                    <div className="text-2xl mb-1">💎</div>
+                    <div>+100 Vàng</div>
+                    <div className="text-xs mt-1">(2 QC)</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MARKET VIEW */}
+        {currentView === 'market' && (
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+              🏪 CHỢ TRADE & GIAO DỊCH
+            </h2>
+            
+            <div className="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-4 mb-6">
+              <p className="text-center text-yellow-300">
+                ⚠️ <strong>DEMO MODE:</strong> Chợ multiplayer thật cần backend server + database
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Market Listings */}
+              <div className="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30">
+                <h3 className="text-xl font-bold mb-4">📦 Hàng Đang Bán</h3>
+                <div className="space-y-2">
+                  {marketListings.length === 0 ? (
+                    <p className="text-center text-purple-300 py-8">Chưa có hàng nào</p>
+                  ) : (
+                    marketListings.map((item, i) => (
+                      <div key={i} className="bg-black/30 p-3 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span>{item.name}</span>
+                          <button className="px-3 py-1 bg-green-600 rounded-lg text-sm">
+                            💰 {item.price}
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Trade */}
+              <div className="bg-gradient-to-br from-pink-900/50 to-purple-900/50 rounded-xl p-6 border-2 border-pink-500/30">
+                <h3 className="text-xl font-bold mb-4">🤝 Trade Trực Tiếp</h3>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={tradeTarget}
+                    onChange={(e) => setTradeTarget(e.target.value)}
+                    placeholder="Nhập tên người chơi..."
+                    className="w-full px-4 py-3 bg-black/30 border-2 border-pink-500/50 rounded-xl focus:border-pink-400 focus:outline-none"
+                  />
+                  <button className="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 rounded-xl font-bold">
+                    🔍 Tìm Người Chơi
+                  </button>
+                  <p className="text-sm text-purple-300 text-center">
+                    Cần backend để kết nối với người chơi khác
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WITHDRAW VIEW */}
+        {currentView === 'withdraw' && (
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+              💵 RÚT TIỀN
+            </h2>
+            
+            <div className="bg-red-900/30 border-2 border-red-500/50 rounded-xl p-4 mb-6">
+              <p className="text-center text-red-300 font-bold">
+                ⚠️ CẢNH BÁO: Tính năng này CHỈ LÀ GIAO DIỆN DEMO
+              </p>
+              <p className="text-center text-red-200 text-sm mt-2">
+                Rút tiền thật cần: Giấy phép kinh doanh, Backend server bảo mật, Tích hợp Payment Gateway hợp pháp
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-4 mb-6">
+              {[
+                { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '20K' },
+                { method: 'momo', label: 'MoMo', icon: '📱', min: '20K' },
+                { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '10K' }
+              ].map(item => (
+                <button
+                  key={item.method}
+                  onClick={() => {
+                    // Demo only - show alert
+                    alert(`DEMO: Chức năng rút ${item.label} cần backend thật. Min: ${item.min}`);
+                  }}
+                  className="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-6 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                >
+                  <div className="text-5xl mb-2">{item.icon}</div>
+                  <h3 className="font-bold">{item.label}</h3>
+                  <p className="text-sm text-green-300">Min: {item.min}</p>
+                </button>
+              ))}
+            </div>
+
+            <div className="text-center">
+              <button
+                onClick={() => setCurrentView('withdraw-history')}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold"
+              >
+                📜 Xem Lịch Sử Rút Tiền
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* WITHDRAW HISTORY */}
+        {currentView === 'withdraw-history' && (
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+              📜 LỊCH SỬ RÚT TIỀN
+            </h2>
+            
+            <div className="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-6 border-2 border-blue-500/30">
+              {withdrawHistory.length === 0 ? (
+                <p className="text-center text-purple-300 py-8">Chưa có lịch sử rút tiền</p>
+              ) : (
+                <div className="space-y-3">
+                  {withdrawHistory.map(item => (
+                    <div key={item.id} className="bg-black/30 p-4 rounded-lg">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold">{item.method === 'bank' ? '🏦 Ngân Hàng' : item.method === 'momo' ? '📱 MoMo' : '🎫 Thẻ Cào'}</p>
+                          <p className="text-sm text-purple-300">{item.date}</p>
+                          <p className="text-sm text-gray-400">Số tiền: {item.amount.toLocaleString()}đ</p>
+                        </div>
+                        <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                          item.status === 'pending' ? 'bg-yellow-600' : 
+                          item.status === 'completed' ? 'bg-green-600' : 'bg-red-600'
+                        }`}>
+                          {item.status === 'pending' ? '⏳ Đang xử lý' : 
+                           item.status === 'completed' ? '✅ Hoàn thành' : '❌ Thất bại'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="bg-black/50 border-t border-purple-500/30 mt-8 py-4">
+        <p className="text-center text-purple-300 text-sm">
+          ⚔️ RPG Online Game • Made with ❤️ • Demo Version
+        </p>
+      </div>
     </div>
+  );
+};
 
-    <div id="tab-shop" class="panel-content">
-        <h2>⚔️ Shop Vũ Khí</h2>
-        <div id="shop-weapon-list"></div>
-        
-        <h2>🛡️ Shop Giáp</h2>
-        <div id="shop-armor-list"></div>
-
-        <h2>🐶 Shop Pet</h2>
-        <div id="shop-pet-list"></div>
-    </div>
-
-    <div id="tab-boss" class="panel-content">
-        <h2>💀 Săn Boss (Tự Chọn)</h2>
-        <div class="item-row">
-            <div><b>Boss Ngày (x5 Vàng)</b><br><small>Còn lại: <span id="boss-daily-left">2</span>/2</small></div>
-            <button class="btn btn-blue" onclick="summonBoss('daily')">Triệu Hồi</button>
-        </div>
-        <div class="item-row">
-            <div><b>Boss Tuần (x10 Vàng)</b><br><small>Còn lại: <span id="boss-weekly-left">3</span>/3</small></div>
-            <button class="btn btn-blue" onclick="summonBoss('weekly')">Triệu Hồi</button>
-        </div>
-        <button class="btn" style="width:100%; background:#444; margin-top:10px;" onclick="returnToFarm()">🏳️ Quay lại ải thường</button>
-
-        <h2 style="margin-top: 30px;">🎬 Xem QC Nhận Quà (Adsterra)</h2>
-        <div class="item-row">
-            <div><b>+100 HP (10 Phút)</b></div>
-            <button class="btn btn-green" onclick="watchAd('hp')">Xem QC</button>
-        </div>
-        <div class="item-row">
-            <div><b>+75 ATK (10 Phút)</b></div>
-            <button class="btn btn-green" onclick="watchAd('atk')">Xem QC</button>
-        </div>
-        <div class="item-row">
-            <div><b>+10 DEF (10 Phút)</b></div>
-            <button class="btn btn-green" onclick="watchAd('def')">Xem QC</button>
-        </div>
-        <div class="item-row">
-            <div><b>Nhận 50 Coin</b></div>
-            <button class="btn btn-green" onclick="watchAd('coin50')">Xem QC</button>
-        </div>
-        <div class="item-row">
-            <div><b>Nhận 100 Coin (2 QC)</b></div>
-            <button class="btn btn-green" onclick="watchAd('coin100')">Xem QC (0/2)</button>
-        </div>
-    </div>
-
-    <div id="tab-market" class="panel-content">
-        <h2>🏪 Chợ Đồ (Global Market)</h2>
-        <p style="font-size:12px; color:#aaa;">*Bán lại đồ cũ cho người chơi khác.</p>
-        <div id="market-list">
-            <div style="text-align:center; padding:20px; color:#666;">Đang tải dữ liệu chợ...</div>
-        </div>
-        <button class="btn" style="width:100%; margin-top:10px" onclick="openSellModal()">➕ Đăng bán vật phẩm</button>
-
-        <h2>🤝 Trade Trực Tiếp</h2>
-        <input type="text" id="trade-name" placeholder="Tên người nhận (VD: PlayerX)">
-        <select id="trade-item-select"><option>Chọn vật phẩm...</option></select>
-        <button class="btn btn-blue" style="width:100%; margin-top:5px;" onclick="p2pTrade()">Gửi đồ</button>
-    </div>
-
-    <div id="tab-withdraw" class="panel-content">
-        <h2>🏦 Rút Tiền</h2>
-        <div style="background:#0f3460; padding:10px; border-radius:5px; margin-bottom:10px;">
-            Số dư khả dụng: <b style="color:yellow"><span id="w-balance">0</span> Đ</b>
-        </div>
-        
-        <select id="w-method" onchange="toggleWithdrawForm()">
-            <option value="bank">Ngân Hàng (Min 20k)</option>
-            <option value="momo">Ví Momo (Min 20k)</option>
-            <option value="card">Thẻ Cào Viettel (10k - 100k)</option>
-        </select>
-
-        <div id="form-bank" class="w-form">
-            <input type="text" placeholder="Tên Ngân Hàng (VD: MBBank)">
-            <input type="text" placeholder="Số Tài Khoản">
-            <input type="text" placeholder="Tên Người Thụ Hưởng">
-        </div>
-        <div id="form-momo" class="w-form" style="display:none">
-            <input type="text" placeholder="Số Điện Thoại Momo">
-            <input type="text" placeholder="Tên Người Thụ Hưởng">
-        </div>
-        <div id="form-card" class="w-form" style="display:none">
-            <p style="font-size:12px;">Mệnh giá: 10k, 20k, 50k, 100k.</p>
-        </div>
-
-        <input type="number" id="w-amount" placeholder="Nhập số tiền cần rút...">
-        <button class="btn btn-green" style="width:100%; margin-top:10px; font-size:16px;" onclick="processWithdraw()">XÁC NHẬN RÚT</button>
-
-        <h2>📜 Lịch Sử Rút Tiền</h2>
-        <div id="w-history"></div>
-    </div>
-
-    <div class="footer-nav">
-        <button class="nav-btn" onclick="showPanel(null)">
-            <i class="fas fa-gamepad"></i> Battle
-        </button>
-        <button class="nav-btn" onclick="showPanel('tab-upgrade')">
-            <i class="fas fa-arrow-up"></i> Upgrade
-        </button>
-        <button class="nav-btn" onclick="showPanel('tab-shop')">
-            <i class="fas fa-store"></i> Shop
-        </button>
-        <button class="nav-btn" onclick="showPanel('tab-boss')">
-            <i class="fas fa-skull"></i> Boss/Ads
-        </button>
-        <button class="nav-btn" onclick="showPanel('tab-market')">
-            <i class="fas fa-handshake"></i> Chợ
-        </button>
-        <button class="nav-btn" onclick="showPanel('tab-withdraw')">
-            <i class="fas fa-wallet"></i> Rút Tiền
-        </button>
-    </div>
-
-    <script>
-        // --- DATA & CONFIG ---
-        const WEAPONS = [
-            {id: 'w0', name: 'Tay Không', val: 0, price: 0},
-            {id: 'w1', name: 'Kiếm Gỗ', val: 20, price: 200},
-            {id: 'w2', name: 'Kiếm Đá', val: 35, price: 500},
-            {id: 'w3', name: 'Kiếm Sắt', val: 50, price: 1000},
-            {id: 'w4', name: 'Kiếm Vàng', val: 75, price: 2000},
-            {id: 'w5', name: 'K.Kim Cương', val: 125, price: 3000},
-            {id: 'w6', name: 'K.Cầu Vồng', val: 180, price: 4500},
-            {id: 'w7', name: 'Kiếm Thánh', val: 300, price: 7000}
-        ];
-
-        const ARMORS = [
-            {id: 'a0', name: 'Áo Rách', def: 0, hp: 0, price: 0},
-            {id: 'a1', name: 'Giáp Vải', def: 3, hp: 50, price: 500},
-            {id: 'a2', name: 'Giáp Đồng', def: 7, hp: 75, price: 1000},
-            {id: 'a3', name: 'Giáp Sắt', def: 10, hp: 100, price: 1500},
-            {id: 'a4', name: 'G.Kim Cương', def: 15, hp: 150, price: 3000},
-            {id: 'a5', name: 'Giáp Thánh', def: 30, hp: 300, price: 5000}
-        ];
-
-        const PETS = [
-            {id: 'p0', name: 'Không', buff: 0, price: 0},
-            {id: 'p1', name: 'Gà Con', buff: 0.05, price: 500},
-            {id: 'p2', name: 'Chó Con', buff: 0.08, price: 1000},
-            {id: 'p3', name: 'Sói Xám', buff: 0.13, price: 1500},
-            {id: 'p4', name: 'Voi Ma Mút', buff: 0.20, price: 2300},
-            {id: 'p5', name: 'Rồng Thần', buff: 0.30, price: 3500}
-        ];
-
-        let player = {
-            name: "",
-            coin: 0,
-            baseHp: 100,
-            baseAtk: 2,
-            baseCrit: 5,
-            weapon: 0,
-            armor: 0,
-            pet: 0,
-            stage: 1,
-            mobCount: 0,
-            inventory: []
-        };
-
-        let buffs = { hp: 0, atk: 0, def: 0 };
-        let enemy = { hp: 10, maxHp: 10, isBoss: false, type: 'normal' };
-        
-        let bossLimits = {
-            daily: 2, weekly: 3, lastReset: Date.now()
-        };
-
-        let adCounter = 0; // For the "2 clicks" requirement
-
-        // --- CORE FUNCTIONS ---
-
-        function startGame() {
-            let name = document.getElementById('player-name-input').value;
-            // Validate: Min 5 chars + number check
-            if (name.length < 5 || !/\d/.test(name)) {
-                alert("Tên phải có ít nhất 5 ký tự và bao gồm số!");
-                return;
-            }
-            player.name = name;
-            document.getElementById('login-screen').style.display = 'none';
-            
-            loadData();
-            renderShop();
-            spawnEnemy();
-            updateUI();
-        }
-
-        function spawnEnemy() {
-            let isBossStage = (player.mobCount >= 10);
-            
-            if(enemy.type === 'daily' || enemy.type === 'weekly') {
-                // Keep current boss
-            } else {
-                enemy.isBoss = isBossStage;
-                enemy.type = 'normal';
-                
-                // Formula for HP
-                let baseHp = 20 * Math.pow(1.15, player.stage);
-                enemy.maxHp = Math.floor(baseHp * (isBossStage ? 3 : 1)); 
-                enemy.hp = enemy.maxHp;
-                
-                let sprites = ["👾", "💀", "👹", "👽", "🤖", "👻"];
-                document.getElementById('enemy-sprite').innerText = isBossStage ? "👿" : sprites[player.stage % 6];
-                document.getElementById('enemy-name').innerText = isBossStage ? "BOSS ẢI " + player.stage : "Quái Ải " + player.stage;
-            }
-            updateHpBar();
-        }
-
-        function playerAttack(e) {
-            // Calculate Stats
-            let wp = WEAPONS[player.weapon];
-            let am = ARMORS[player.armor];
-            let pt = PETS[player.pet];
-
-            let totalAtk = (player.baseAtk + wp.val + buffs.atk) * (1 + pt.buff);
-            let isCrit = Math.random() * 100 < player.baseCrit;
-            if(isCrit) totalAtk *= 2;
-            
-            totalAtk = Math.floor(totalAtk);
-            enemy.hp -= totalAtk;
-
-            // Visuals
-            createDamagePopup(totalAtk, isCrit, e);
-            document.getElementById('enemy-sprite').style.transform = "scale(0.8)";
-            setTimeout(()=> document.getElementById('enemy-sprite').style.transform = "scale(1)", 100);
-
-            if(enemy.hp <= 0) {
-                winBattle();
-            }
-            updateHpBar();
-        }
-
-        function winBattle() {
-            // Reward
-            let gold = Math.floor(5 * Math.pow(1.1, player.stage)); // Base gold
-            
-            if(enemy.type === 'daily') {
-                gold *= 5;
-                alert("Đã diệt Boss Ngày! +"+gold+"Đ");
-                returnToFarm();
-            } else if (enemy.type === 'weekly') {
-                gold *= 10;
-                alert("Đã diệt Boss Tuần! +"+gold+"Đ");
-                returnToFarm();
-            } else if (enemy.isBoss) {
-                // Normal Boss
-                gold *= 2;
-                player.stage++;
-                player.mobCount = 0;
-            } else {
-                // Normal Mob
-                player.mobCount++;
-            }
-
-            player.coin += gold;
-            spawnEnemy();
-            updateUI();
-        }
-
-        function summonBoss(type) {
-            checkBossReset();
-            
-            if(type === 'daily') {
-                if(bossLimits.daily > 0) {
-                    bossLimits.daily--;
-                    setupBossBattle("BOSS NGÀY", 5); // x5 strength
-                    enemy.type = 'daily';
-                } else alert("Hết lượt Boss ngày!");
-            } else {
-                if(bossLimits.weekly > 0) {
-                    bossLimits.weekly--;
-                    setupBossBattle("BOSS TUẦN", 10); // x10 strength
-                    enemy.type = 'weekly';
-                } else alert("Hết lượt Boss tuần!");
-            }
-            showPanel(null); // Close panel
-        }
-
-        function setupBossBattle(name, multiplier) {
-            let baseHp = 20 * Math.pow(1.15, player.stage);
-            enemy.maxHp = Math.floor(baseHp * 10 * multiplier);
-            enemy.hp = enemy.maxHp;
-            enemy.isBoss = true;
-            document.getElementById('enemy-sprite').innerText = "🐲";
-            document.getElementById('enemy-name').innerText = name;
-            updateHpBar();
-        }
-
-        function returnToFarm() {
-            enemy.type = 'normal';
-            spawnEnemy();
-        }
-
-        function checkBossReset() {
-            let now = new Date();
-            let last = new Date(bossLimits.lastReset);
-            if(now.getDate() !== last.getDate()) {
-                bossLimits.daily = 2;
-                // Simple weekly reset logic (if monday)
-                if(now.getDay() === 1) bossLimits.weekly = 3;
-                bossLimits.lastReset = Date.now();
-            }
-        }
-
-        // --- SHOP & UPGRADE ---
-        
-        function upgradeStat(type) {
-            let cost = 0;
-            if(type === 'atk') {
-                cost = 100 + player.baseAtk * 10;
-                if(player.coin >= cost) {
-                    player.coin -= cost;
-                    player.baseAtk += 2;
-                    updateUI();
-                }
-            } else if (type === 'hp') {
-                cost = 100 + (player.baseHp - 100);
-                if(player.coin >= cost) {
-                    player.coin -= cost;
-                    player.baseHp += 20;
-                    updateUI();
-                }
-            } else if (type === 'crit') {
-                cost = 200 + player.baseCrit * 50;
-                if(player.coin >= cost) {
-                    player.coin -= cost;
-                    player.baseCrit += 1;
-                    updateUI();
-                }
-            }
-        }
-
-        function renderShop() {
-            // Weapons
-            let wHtml = "";
-            WEAPONS.forEach((w, idx) => {
-                if(idx === 0) return;
-                let owned = player.weapon >= idx;
-                let btn = owned ? `<button class="btn" disabled>Đã Mua</button>` : 
-                          `<button class="btn" onclick="buyItem('weapon', ${idx})">Mua ${w.price}Đ</button>`;
-                if(player.weapon === idx) btn = `<button class="btn btn-green">Đang Đeo</button>`;
-                
-                wHtml += `<div class="item-row"><div><b>${w.name}</b><br><small>+${w.val} Dame</small></div>${btn}</div>`;
-            });
-            document.getElementById('shop-weapon-list').innerHTML = wHtml;
-
-            // Armors
-            let aHtml = "";
-            ARMORS.forEach((a, idx) => {
-                if(idx === 0) return;
-                let owned = player.armor >= idx;
-                let btn = owned ? `<button class="btn" disabled>Đã Mua</button>` : 
-                          `<button class="btn" onclick="buyItem('armor', ${idx})">Mua ${a.price}Đ</button>`;
-                
-                aHtml += `<div class="item-row"><div><b>${a.name}</b><br><small>+${a.def} Def, +${a.hp} HP</small></div>${btn}</div>`;
-            });
-            document.getElementById('shop-armor-list').innerHTML = aHtml;
-            
-            // Pets
-            let pHtml = "";
-            PETS.forEach((p, idx) => {
-                if(idx === 0) return;
-                let owned = player.pet === idx; // Only own 1 active pet for simplicity
-                let btn = `<button class="btn" onclick="buyItem('pet', ${idx})">Mua ${p.price}Đ</button>`;
-                if(player.pet === idx) btn = `<button class="btn btn-green">Đang dùng</button>`;
-
-                pHtml += `<div class="item-row"><div><b>${p.name}</b><br><small>+${p.buff*100}% ATK</small></div>${btn}</div>`;
-            });
-            document.getElementById('shop-pet-list').innerHTML = pHtml;
-        }
-
-        function buyItem(cat, id) {
-            let price = 0;
-            if(cat === 'weapon') price = WEAPONS[id].price;
-            if(cat === 'armor') price = ARMORS[id].price;
-            if(cat === 'pet') price = PETS[id].price;
-
-            if(player.coin >= price) {
-                player.coin -= price;
-                if(cat === 'weapon') player.weapon = id;
-                if(cat === 'armor') player.armor = id;
-                if(cat === 'pet') player.pet = id;
-                alert("Mua thành công!");
-                updateUI();
-                renderShop();
-            } else {
-                alert("Không đủ tiền!");
-            }
-        }
-
-        // --- ADS SYSTEM ---
-        function watchAd(type) {
-            // Simulate Adsterra click
-            let confirmed = confirm("Bạn sẽ được chuyển đến trang quảng cáo (Adsterra) để nhận thưởng?");
-            if(confirmed) {
-                window.open("https://adsterra.com/", "_blank");
-                
-                setTimeout(() => {
-                    if(type === 'hp') {
-                        buffs.hp = 100;
-                        setTimeout(() => { buffs.hp = 0; updateUI(); }, 600000); // 10 mins
-                        alert("Đã nhận Buff +100HP trong 10 phút!");
-                    } else if(type === 'atk') {
-                        buffs.atk = 75;
-                        setTimeout(() => { buffs.atk = 0; updateUI(); }, 600000);
-                        alert("Đã nhận Buff +75 ATK trong 10 phút!");
-                    } else if(type === 'def') {
-                        buffs.def = 10;
-                        setTimeout(() => { buffs.def = 0; updateUI(); }, 600000);
-                        alert("Đã nhận Buff +10 DEF trong 10 phút!");
-                    } else if(type === 'coin50') {
-                        // Variable coin logic
-                        let c = Math.floor(Math.random() * 20) + 40; // 40-60
-                        player.coin += c;
-                        alert("Nhận được " + c + " Coin!");
-                    } else if (type === 'coin100') {
-                        adCounter++;
-                        if(adCounter >= 2) {
-                            let c = Math.floor(Math.random() * 50) + 80; // 80-130
-                            player.coin += c;
-                            alert("Đã xem 2 QC. Nhận " + c + " Coin!");
-                            adCounter = 0;
-                        } else {
-                            alert("Đã xem 1/2 QC. Hãy xem thêm 1 QC nữa!");
-                        }
-                    }
-                    updateUI();
-                }, 2000); // Simulate wait
-            }
-        }
-
-        // --- MARKET & TRADE ---
-        function openSellModal() {
-            // Simplified: Sell current weapon for 50% price
-            let wp = WEAPONS[player.weapon];
-            if(player.weapon === 0) {
-                alert("Không có gì để bán!"); return;
-            }
-            if(confirm(`Bạn có muốn đăng bán ${wp.name} lên chợ với giá ${wp.price/2}Đ không? (Mất vũ khí)`)) {
-                player.weapon = 0;
-                player.coin += (wp.price / 2); // Instant sell for simplicity in "Offline" mode
-                alert("Đã bán thành công!");
-                renderShop();
-                updateUI();
-            }
-        }
-
-        function p2pTrade() {
-            let target = document.getElementById('trade-name').value;
-            if(!target) return alert("Nhập tên người nhận!");
-            alert(`Đã gửi yêu cầu giao dịch đến ${target} (Giả lập)`);
-        }
-
-        function loadMarket() {
-            // Simulated fake market data
-            let html = "";
-            let randomItems = [
-                {name: "Kiếm Gỗ", price: 100, seller: "DragonSlayer"},
-                {name: "Giáp Vải", price: 200, seller: "NoobMaster69"},
-                {name: "Kiếm Sắt", price: 800, seller: "ProVjpPromax"}
-            ];
-            randomItems.forEach(i => {
-                html += `<div class="item-row"><div><b>${i.name}</b><br><small>Người bán: ${i.seller}</small></div><button class="btn btn-green" onclick="alert('Đã mua!')">Mua ${i.price}Đ</button></div>`;
-            });
-            document.getElementById('market-list').innerHTML = html;
-        }
-
-        // --- WITHDRAW ---
-        function toggleWithdrawForm() {
-            document.querySelectorAll('.w-form').forEach(d => d.style.display = 'none');
-            let val = document.getElementById('w-method').value;
-            document.getElementById('form-'+val).style.display = 'block';
-        }
-
-        function processWithdraw() {
-            let amount = parseInt(document.getElementById('w-amount').value);
-            let method = document.getElementById('w-method').value;
-            
-            // Limits
-            let min = 20000;
-            let max = 99999999;
-            if(method === 'card') { min = 10000; max = 100000; }
-            
-            if(!amount || amount < min) {
-                alert(`Rút tối thiểu ${min}Đ!`); return;
-            }
-            if(method === 'card' && amount > max) {
-                 alert(`Thẻ cào tối đa ${max}Đ!`); return;
-            }
-
-            if(player.coin >= amount) {
-                player.coin -= amount;
-                
-                // Add to history
-                let date = new Date().toLocaleString();
-                let histHtml = `<div class="history-item">
-                    <b>${amount}Đ</b> - ${method.toUpperCase()} <br>
-                    <span style="color:#aaa">${date}</span> - <span style="color:yellow">Đang duyệt</span>
-                    ${method === 'card' ? '<br>Mã thẻ: Đang chờ...' : ''}
-                </div>`;
-                
-                let histContainer = document.getElementById('w-history');
-                histContainer.innerHTML = histHtml + histContainer.innerHTML;
-
-                localStorage.setItem('game_history', histContainer.innerHTML);
-                alert("Gửi yêu cầu rút tiền thành công!");
-                updateUI();
-            } else {
-                alert("Số dư không đủ!");
-            }
-        }
-
-        // --- UTILS & UI UPDATE ---
-        function updateUI() {
-            let wp = WEAPONS[player.weapon];
-            let am = ARMORS[player.armor];
-            let pt = PETS[player.pet];
-
-            // Stats Calc
-            let realHp = player.baseHp + am.hp + buffs.hp;
-            let realAtk = (player.baseAtk + wp.val + buffs.atk) * (1 + pt.buff);
-            let realDef = am.def + buffs.def;
-
-            // UI
-            document.getElementById('ui-name').innerText = player.name;
-            document.getElementById('ui-hp').innerText = Math.floor(realHp);
-            document.getElementById('ui-maxhp').innerText = Math.floor(realHp);
-            document.getElementById('ui-atk').innerText = Math.floor(realAtk);
-            document.getElementById('ui-crit').innerText = player.baseCrit;
-            document.getElementById('ui-def').innerText = realDef;
-            document.getElementById('ui-coin').innerText = player.coin.toLocaleString();
-            document.getElementById('w-balance').innerText = player.coin.toLocaleString();
-            
-            document.getElementById('ui-stage').innerText = player.stage;
-            document.getElementById('ui-mob-count').innerText = player.mobCount;
-            
-            // Boss counts
-            document.getElementById('boss-daily-left').innerText = bossLimits.daily;
-            document.getElementById('boss-weekly-left').innerText = bossLimits.weekly;
-
-            // Costs
-            document.getElementById('cost-atk').innerText = 100 + player.baseAtk * 10;
-            document.getElementById('cost-hp').innerText = 100 + (player.baseHp - 100);
-            document.getElementById('cost-crit').innerText = 200 + player.baseCrit * 50;
-
-            // Buff bar
-            if(buffs.hp > 0 || buffs.atk > 0) document.getElementById('buff-bar').style.display = 'block';
-            else document.getElementById('buff-bar').style.display = 'none';
-
-            saveData();
-        }
-
-        function updateHpBar() {
-            let pct = (enemy.hp / enemy.maxHp) * 100;
-            if(pct < 0) pct = 0;
-            document.getElementById('enemy-hp-bar').style.width = pct + "%";
-            document.getElementById('enemy-hp').innerText = enemy.hp;
-        }
-
-        function createDamagePopup(dmg, isCrit, e) {
-            let el = document.createElement('div');
-            el.className = 'dmg-popup';
-            if(isCrit) el.classList.add('crit');
-            el.innerText = isCrit ? "CRIT " + dmg : dmg;
-            
-            let x, y;
-            if(e) {
-                x = e.clientX; y = e.clientY;
-            } else {
-                x = window.innerWidth/2; y = window.innerHeight/2;
-            }
-            
-            el.style.left = (x - 20) + 'px';
-            el.style.top = (y - 50) + 'px';
-            document.body.appendChild(el);
-            setTimeout(() => el.remove(), 800);
-        }
-
-        function showPanel(id) {
-            document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            
-            if(id) {
-                document.getElementById(id).classList.add('active');
-                event.currentTarget.classList.add('active');
-                if(id === 'tab-market') loadMarket();
-            }
-        }
-
-        // --- SAVE / LOAD ---
-        function saveData() {
-            let data = {
-                player: player,
-                bossLimits: bossLimits
-            };
-            localStorage.setItem('rpg_online_save', JSON.stringify(data));
-        }
-
-        function loadData() {
-            let saved = localStorage.getItem('rpg_online_save');
-            if(saved) {
-                let d = JSON.parse(saved);
-                player = {...player, ...d.player}; // Merge incase new fields
-                bossLimits = d.bossLimits;
-                // Restore history
-                let hist = localStorage.getItem('game_history');
-                if(hist) document.getElementById('w-history').innerHTML = hist;
-            }
-        }
-
-    </script>
-</body>
-</html>
+export default RPGGame;
