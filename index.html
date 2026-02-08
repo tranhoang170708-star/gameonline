@@ -711,12 +711,10 @@
                                         <p class="text-xs text-green-200 mt-1">Quái mới sẽ tự động spawn sau ${gameState.player.hp < stats.totalHp ? '2' : '1.5'} giây</p>
                                     </div>
                                 ` : `
-                                    <button
-                                        onclick="startBattle(); render();"
-                                        class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all"
-                                    >
-                                        ⚔️ BẮT ĐẦU CHIẾN ĐẤU
-                                    </button>
+                                    <div class="bg-yellow-900/30 border border-yellow-500/50 rounded-lg p-3">
+                                        <p class="text-yellow-300 text-sm">⏳ Đang spawn quái mới...</p>
+                                        <p class="text-xs text-yellow-200 mt-1">Quái sẽ tự động xuất hiện ngay</p>
+                                    </div>
                                 `}
                             </div>
                         ` : `
