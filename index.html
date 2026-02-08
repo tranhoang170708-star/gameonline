@@ -158,6 +158,18 @@
                 this.ADMINS_KEY = 'rpg_admins_list';
                 this.NOTIFICATIONS_KEY = 'rpg_notifications';
                 this.MASTER_ADMIN = 'Quyet170708'; // Admin cố định
+                
+                // Initialize admin list on first load
+                this.initializeAdmins();
+            }
+
+            // ===== INITIALIZE ADMINS =====
+            initializeAdmins() {
+                const admins = this.getAllAdmins();
+                if (!admins.includes(this.MASTER_ADMIN)) {
+                    admins.push(this.MASTER_ADMIN);
+                    this.saveAdmins(admins);
+                }
             }
 
             // ===== NOTIFICATIONS MANAGEMENT =====
@@ -166,6 +178,7 @@
                     const notifs = localStorage.getItem(this.NOTIFICATIONS_KEY);
                     return notifs ? JSON.parse(notifs) : [];
                 } catch (e) {
+                    console.error('Error loading notifications:', e);
                     return [];
                 }
             }
@@ -222,13 +235,9 @@
                 try {
                     const admins = localStorage.getItem(this.ADMINS_KEY);
                     const adminList = admins ? JSON.parse(admins) : [];
-                    // Đảm bảo master admin luôn có trong list
-                    if (!adminList.includes(this.MASTER_ADMIN)) {
-                        adminList.push(this.MASTER_ADMIN);
-                        this.saveAdmins(adminList);
-                    }
                     return adminList;
                 } catch (e) {
+                    console.error('Error loading admins:', e);
                     return [this.MASTER_ADMIN];
                 }
             }
@@ -282,8 +291,11 @@
             getAllUsers() {
                 try {
                     const users = localStorage.getItem(this.USERS_KEY);
-                    return users ? JSON.parse(users) : {};
+                    const parsed = users ? JSON.parse(users) : {};
+                    console.log('getAllUsers:', Object.keys(parsed)); // Debug
+                    return parsed;
                 } catch (e) {
+                    console.error('Error loading users:', e);
                     return {};
                 }
             }
@@ -291,6 +303,7 @@
             saveAllUsers(users) {
                 try {
                     localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+                    console.log('saveAllUsers: Saved', Object.keys(users).length, 'users'); // Debug
                     return true;
                 } catch (e) {
                     console.error('Lỗi lưu users:', e);
@@ -300,7 +313,9 @@
 
             userExists(username) {
                 const users = this.getAllUsers();
-                return users.hasOwnProperty(username);
+                const exists = users.hasOwnProperty(username);
+                console.log('userExists:', username, '=', exists); // Debug
+                return exists;
             }
 
             createUser(username, password) {
@@ -339,6 +354,7 @@
                 };
 
                 this.saveAllUsers(users);
+                console.log('User created:', username); // Debug
                 return { success: true, message: 'Tạo tài khoản thành công!' };
             }
 
@@ -370,8 +386,10 @@
                 if (users[username]) {
                     users[username].playerData = playerData;
                     this.saveAllUsers(users);
+                    console.log('Player data saved for:', username); // Debug
                     return true;
                 }
+                console.error('Cannot save player data: user not found:', username); // Debug
                 return false;
             }
 
@@ -382,17 +400,27 @@
 
             // ===== ADMIN: ADD/REMOVE GOLD =====
             modifyUserGold(username, amount) {
+                console.log('modifyUserGold called:', username, amount); // Debug
+                
+                // Force reload users from localStorage
                 const users = this.getAllUsers();
-                if (users[username]) {
-                    users[username].playerData.gold += amount;
-                    // Không cho âm
-                    if (users[username].playerData.gold < 0) {
-                        users[username].playerData.gold = 0;
-                    }
-                    this.saveAllUsers(users);
-                    return { success: true, gold: users[username].playerData.gold };
+                console.log('Available users:', Object.keys(users)); // Debug
+                
+                if (!users[username]) {
+                    console.error('User not found:', username); // Debug
+                    return { success: false, message: `User "${username}" không tồn tại trong hệ thống!` };
                 }
-                return { success: false, message: 'User không tồn tại!' };
+                
+                // Modify gold
+                users[username].playerData.gold = Math.max(0, users[username].playerData.gold + amount);
+                
+                // Save immediately
+                this.saveAllUsers(users);
+                
+                const newGold = users[username].playerData.gold;
+                console.log('Gold modified. New balance:', newGold); // Debug
+                
+                return { success: true, gold: newGold };
             }
 
             // ===== MARKET DATABASE =====
@@ -715,22 +743,22 @@
                 if (bossType === 'stage') {
                     hp = baseHp * 1.3;
                     atk = baseAtk * 1.2;
-                    goldReward = Math.floor(goldReward * 1.8); // Giảm từ 2x xuống 1.8x
-                    expReward = Math.floor(expReward * 1.8); // Giảm từ 2x xuống 1.8x
+                    goldReward = Math.floor(goldReward * 1.8);
+                    expReward = Math.floor(expReward * 1.8);
                     name = `Boss Ải ${Math.floor(stage / 10) + 1}`;
                     icon = '👹';
                 } else if (bossType === 'daily') {
                     hp = baseHp * 3;
                     atk = baseAtk * 2;
-                    goldReward = Math.floor(goldReward * 4); // Giảm từ 5x xuống 4x
-                    expReward = Math.floor(expReward * 2.5); // Giảm từ 3x xuống 2.5x
+                    goldReward = Math.floor(goldReward * 4);
+                    expReward = Math.floor(expReward * 2.5);
                     name = `Boss Ngày`;
                     icon = '🔥';
                 } else if (bossType === 'weekly') {
                     hp = baseHp * 5;
                     atk = baseAtk * 3;
-                    goldReward = Math.floor(goldReward * 7); // Giảm từ 10x xuống 7x
-                    expReward = Math.floor(expReward * 4); // Giảm từ 5x xuống 4x
+                    goldReward = Math.floor(goldReward * 7);
+                    expReward = Math.floor(expReward * 4);
                     name = `Boss Tuần`;
                     icon = '⚡';
                 }
@@ -1126,12 +1154,10 @@
             const baseReward = 50;
             const difficulty = Math.max(1, gameState.player.currentStage / 10);
             const randomBonus = Math.random() * 0.5 + 0.75;
-            // GIẢM phần thưởng từ QC xuống 70%
             return Math.floor(baseReward * difficulty * randomBonus * 0.7);
         }
 
         function loadAdsterraScript(callback) {
-            // Load script động khi cần
             const script = document.createElement('script');
             script.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
             script.async = true;
@@ -1146,9 +1172,7 @@
         function watchAd(type) {
             addLog('📺 Đang tải quảng cáo...', 'info');
             
-            // Load và chạy Adsterra script
             loadAdsterraScript(() => {
-                // Sau khi script load xong, đợi 2 giây giả lập xem quảng cáo
                 setTimeout(() => {
                     gameState.adsWatched++;
                     
@@ -1368,33 +1392,59 @@
 
         // ===== ADMIN: MODIFY USER GOLD =====
         function showModifyGoldForm() {
-            const username = prompt('Nhập username cần cộng/trừ tiền:');
-            if (!username) return;
-
-            if (!DB.userExists(username)) {
-                alert('User không tồn tại!');
+            // Hiển thị danh sách users để chọn
+            const allUsers = DB.getAllUsers();
+            const usernames = Object.keys(allUsers);
+            
+            if (usernames.length === 0) {
+                alert('Không có user nào trong hệ thống!');
                 return;
             }
 
-            const amountStr = prompt(`Nhập số tiền cho ${username}:\n\n• Số dương để CỘNG tiền\n• Số âm để TRỪ tiền\n\nVí dụ: 1000 hoặc -500`);
+            let userList = 'Danh sách users:\n\n';
+            usernames.forEach((name, index) => {
+                const gold = allUsers[name].playerData.gold;
+                userList += `${index + 1}. ${name} - Vàng: ${gold.toLocaleString()}đ\n`;
+            });
+
+            const username = prompt(userList + '\nNhập username cần cộng/trừ tiền:');
+            if (!username) return;
+
+            const trimmedUsername = username.trim();
+
+            if (!DB.userExists(trimmedUsername)) {
+                alert(`❌ User "${trimmedUsername}" không tồn tại!\n\nCác user có trong hệ thống:\n${usernames.join(', ')}`);
+                return;
+            }
+
+            const currentGold = allUsers[trimmedUsername].playerData.gold;
+            const amountStr = prompt(`User: ${trimmedUsername}\nSố dư hiện tại: ${currentGold.toLocaleString()}đ\n\nNhập số tiền:\n• Số DƯƠNG để CỘNG tiền (VD: 1000)\n• Số ÂM để TRỪ tiền (VD: -500)`);
+            
             if (!amountStr) return;
 
             const amount = parseInt(amountStr);
-            if (isNaN(amount)) {
-                alert('Số tiền không hợp lệ!');
+            if (isNaN(amount) || amount === 0) {
+                alert('❌ Số tiền không hợp lệ!');
                 return;
             }
 
-            const result = DB.modifyUserGold(username, amount);
+            console.log('Calling modifyUserGold:', trimmedUsername, amount); // Debug
+            const result = DB.modifyUserGold(trimmedUsername, amount);
+            
             if (result.success) {
                 const action = amount > 0 ? 'CỘNG' : 'TRỪ';
-                alert(`✅ Đã ${action} ${Math.abs(amount).toLocaleString()}đ cho ${username}!\n\nSố dư hiện tại: ${result.gold.toLocaleString()}đ`);
+                alert(`✅ Đã ${action} ${Math.abs(amount).toLocaleString()}đ cho ${trimmedUsername}!\n\nSố dư mới: ${result.gold.toLocaleString()}đ`);
                 
-                // Gửi thông báo cho user đó
+                // Gửi thông báo
                 if (amount > 0) {
                     DB.addNotification(`💰 Admin đã cộng cho bạn ${amount.toLocaleString()}đ!`, 'success');
                 } else {
                     DB.addNotification(`⚠️ Admin đã trừ ${Math.abs(amount).toLocaleString()}đ từ tài khoản của bạn!`, 'warning');
+                }
+                
+                // Reload player data nếu đang thao tác với user hiện tại
+                if (trimmedUsername === gameState.currentUsername) {
+                    gameState.player = DB.getPlayerData(trimmedUsername);
                 }
                 
                 render();
@@ -1556,12 +1606,6 @@
             if (!gameState.currentNotification) return '';
 
             const notif = gameState.currentNotification;
-            const bgColor = {
-                'info': 'from-blue-600 to-cyan-600',
-                'success': 'from-green-600 to-emerald-600',
-                'warning': 'from-yellow-600 to-orange-600',
-                'error': 'from-red-600 to-pink-600'
-            }[notif.type] || 'from-purple-600 to-pink-600';
 
             return `
                 <div class="notification-banner slide-down">
@@ -2433,7 +2477,7 @@
                     <!-- Withdraw Requests -->
                     <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30">
                         <h3 class="text-xl font-bold mb-4">💵 YÊU CẦU RÚT TIỀN</h3>
-                        <div class="space-y-3">
+                        <div class="space-y-3 max-h-96 overflow-y-auto">
                             ${allRequests.length === 0 ? `
                                 <p class="text-center text-purple-300 py-8">Chưa có yêu cầu nào</p>
                             ` : allRequests.map(req => `
