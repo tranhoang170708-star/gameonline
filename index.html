@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚔️ GAME ONLINE - RPG Phiêu Lưu [FULL VERSION]</title>
     
-    <!-- Adsterra Script -->
-    <script async src="https://pl28673158.effectivegatecpm.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js"></script>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     
     <style>
@@ -110,6 +107,15 @@
                 transform: translateY(-100px);
             }
         }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
     </style>
 </head>
 <body>
@@ -123,6 +129,69 @@
                 this.MARKET_KEY = 'rpg_market_db';
                 this.WITHDRAW_KEY = 'rpg_withdraw_db';
                 this.CURRENT_USER_KEY = 'rpg_current_user';
+                this.ADMINS_KEY = 'rpg_admins_list';
+                this.MASTER_ADMIN = 'Quyet170708'; // Admin cố định
+            }
+
+            // ===== ADMIN MANAGEMENT =====
+            getAllAdmins() {
+                try {
+                    const admins = localStorage.getItem(this.ADMINS_KEY);
+                    const adminList = admins ? JSON.parse(admins) : [];
+                    // Đảm bảo master admin luôn có trong list
+                    if (!adminList.includes(this.MASTER_ADMIN)) {
+                        adminList.push(this.MASTER_ADMIN);
+                        this.saveAdmins(adminList);
+                    }
+                    return adminList;
+                } catch (e) {
+                    return [this.MASTER_ADMIN];
+                }
+            }
+
+            saveAdmins(adminList) {
+                try {
+                    localStorage.setItem(this.ADMINS_KEY, JSON.stringify(adminList));
+                    return true;
+                } catch (e) {
+                    console.error('Lỗi lưu admins:', e);
+                    return false;
+                }
+            }
+
+            isAdmin(username) {
+                const admins = this.getAllAdmins();
+                return admins.includes(username);
+            }
+
+            isMasterAdmin(username) {
+                return username === this.MASTER_ADMIN;
+            }
+
+            addAdmin(username) {
+                if (this.userExists(username)) {
+                    const admins = this.getAllAdmins();
+                    if (!admins.includes(username)) {
+                        admins.push(username);
+                        this.saveAdmins(admins);
+                        return { success: true, message: `Đã thêm ${username} vào danh sách Admin!` };
+                    }
+                    return { success: false, message: 'User này đã là Admin rồi!' };
+                }
+                return { success: false, message: 'User không tồn tại!' };
+            }
+
+            removeAdmin(username) {
+                if (username === this.MASTER_ADMIN) {
+                    return { success: false, message: 'Không thể gỡ Master Admin!' };
+                }
+                const admins = this.getAllAdmins();
+                const newAdmins = admins.filter(a => a !== username);
+                if (newAdmins.length < admins.length) {
+                    this.saveAdmins(newAdmins);
+                    return { success: true, message: `Đã gỡ ${username} khỏi Admin!` };
+                }
+                return { success: false, message: 'User này không phải Admin!' };
             }
 
             // ===== USER DATABASE =====
@@ -157,7 +226,7 @@
 
                 const users = this.getAllUsers();
                 users[username] = {
-                    password: password, // ⚠️ Production: Cần hash password
+                    password: password,
                     playerData: {
                         name: username,
                         hp: 100,
@@ -225,10 +294,6 @@
             getPlayerData(username) {
                 const users = this.getAllUsers();
                 return users[username] ? users[username].playerData : null;
-            }
-
-            isAdmin(username) {
-                return username === 'admin';
             }
 
             // ===== MARKET DATABASE =====
@@ -365,7 +430,7 @@
         let gameState = {
             isLoggedIn: false,
             currentUsername: null,
-            authView: 'login', // 'login' or 'register'
+            authView: 'login',
             authError: '',
             player: null,
             currentView: 'game',
@@ -380,9 +445,10 @@
                 def: { active: false, endTime: 0 }
             },
             adsWatched: 0,
-            marketView: 'browse', // 'browse' or 'sell'
+            marketView: 'browse',
             selectedItemToSell: null,
-            sellPrice: ''
+            sellPrice: '',
+            showSupport: false
         };
 
         // ==================== SHOP DATA ====================
@@ -454,7 +520,6 @@
                 gameState.player = result.userData;
                 gameState.authError = '';
                 
-                // Auto start battle
                 setTimeout(() => {
                     if (!gameState.isInBattle && gameState.currentView === 'game') {
                         startBattle();
@@ -806,7 +871,6 @@
 
         // ==================== MARKET FUNCTIONS ====================
         function canSellItem(item, type) {
-            // Không thể bán đồ đang trang bị
             if (type === 'weapon' && gameState.player.weapon?.name === item.name) return false;
             if (type === 'armor' && gameState.player.armor?.name === item.name) return false;
             if (type === 'pet' && gameState.player.pet?.name === item.name) return false;
@@ -838,7 +902,6 @@
 
             const { item, type } = gameState.selectedItemToSell;
 
-            // Remove from owned
             if (type === 'weapon') {
                 gameState.player.ownedWeapons = gameState.player.ownedWeapons.filter(w => w.name !== item.name);
             } else if (type === 'armor') {
@@ -847,7 +910,6 @@
                 gameState.player.ownedPets = gameState.player.ownedPets.filter(p => p.name !== item.name);
             }
 
-            // Add to market
             DB.addMarketListing(gameState.currentUsername, item, type, price);
             
             saveGame();
@@ -865,10 +927,8 @@
                 return;
             }
 
-            // Deduct gold from buyer
             gameState.player.gold -= listing.price;
 
-            // Add item to buyer's inventory
             const { item, type } = listing;
             if (type === 'weapon') {
                 gameState.player.ownedWeapons.push(item);
@@ -878,14 +938,12 @@
                 gameState.player.ownedPets.push(item);
             }
 
-            // Transfer gold to seller
             const sellerData = DB.getPlayerData(listing.seller);
             if (sellerData) {
                 sellerData.gold += listing.price;
                 DB.savePlayerData(listing.seller, sellerData);
             }
 
-            // Remove from market
             DB.removeMarketListing(listing.id);
 
             saveGame();
@@ -897,7 +955,6 @@
             const listing = DB.removeMarketListing(listingId);
             
             if (listing) {
-                // Return item to owner
                 const { item, type } = listing;
                 if (type === 'weapon') {
                     gameState.player.ownedWeapons.push(item);
@@ -949,34 +1006,46 @@
             return Math.floor(baseReward * difficulty * randomBonus);
         }
 
+        function loadAdsterraScript(callback) {
+            // Load script động khi cần
+            const script = document.createElement('script');
+            script.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
+            script.async = true;
+            script.onload = callback;
+            script.onerror = () => {
+                console.log('Adsterra script load failed');
+                if (callback) callback();
+            };
+            document.body.appendChild(script);
+        }
+
         function watchAd(type) {
             addLog('📺 Đang tải quảng cáo...', 'info');
             
-            // Trigger Adsterra script (if available)
-            if (window.atOptions) {
-                // Adsterra ad display logic
-            }
-            
-            setTimeout(() => {
-                gameState.adsWatched++;
-                
-                if (type === 'hp' || type === 'atk' || type === 'def') {
-                    const endTime = Date.now() + 10 * 60 * 1000;
-                    gameState.adBoosts[type] = { active: true, endTime };
-                    addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
-                } else if (type === 'coin1') {
-                    const bonus = calculateAdReward();
-                    gameState.player.gold += bonus;
-                    saveGame();
-                    addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
-                } else if (type === 'coin2') {
-                    const bonus = calculateAdReward() * 2;
-                    gameState.player.gold += bonus;
-                    saveGame();
-                    addLog(`💎 +${bonus} Vàng từ 2 quảng cáo!`, 'success');
-                }
-                render();
-            }, 2000);
+            // Load và chạy Adsterra script
+            loadAdsterraScript(() => {
+                // Sau khi script load xong, đợi 2 giây giả lập xem quảng cáo
+                setTimeout(() => {
+                    gameState.adsWatched++;
+                    
+                    if (type === 'hp' || type === 'atk' || type === 'def') {
+                        const endTime = Date.now() + 10 * 60 * 1000;
+                        gameState.adBoosts[type] = { active: true, endTime };
+                        addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
+                    } else if (type === 'coin1') {
+                        const bonus = calculateAdReward();
+                        gameState.player.gold += bonus;
+                        saveGame();
+                        addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
+                    } else if (type === 'coin2') {
+                        const bonus = calculateAdReward() * 2;
+                        gameState.player.gold += bonus;
+                        saveGame();
+                        addLog(`💎 +${bonus} Vàng từ 2 quảng cáo!`, 'success');
+                    }
+                    render();
+                }, 2000);
+            });
         }
 
         // ==================== WITHDRAW FUNCTIONS ====================
@@ -1150,6 +1219,33 @@
                 addLog('🗑️ Đã xóa yêu cầu!', 'info');
                 render();
             }
+        }
+
+        function addAdminUser() {
+            const username = prompt('Nhập username để thêm vào Admin:');
+            if (username) {
+                const result = DB.addAdmin(username.trim());
+                alert(result.message);
+                if (result.success) {
+                    render();
+                }
+            }
+        }
+
+        function removeAdminUser(username) {
+            if (confirm(`Gỡ quyền Admin của ${username}?`)) {
+                const result = DB.removeAdmin(username);
+                alert(result.message);
+                if (result.success) {
+                    render();
+                }
+            }
+        }
+
+        // ==================== SUPPORT FUNCTIONS ====================
+        function toggleSupport() {
+            gameState.showSupport = !gameState.showSupport;
+            render();
         }
 
         // ==================== RENDER FUNCTIONS ====================
@@ -1637,7 +1733,7 @@
                     
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 text-sm md:text-base">
-                            ✅ <strong>TÍCH HỢP THẬT:</strong> Adsterra.com đã được tích hợp
+                            ✅ <strong>TÍCH HỢP THẬT:</strong> Adsterra script chỉ chạy khi click nút xem QC
                         </p>
                         <p class="text-center text-green-200 text-xs mt-2">
                             Số QC đã xem: ${gameState.adsWatched}
@@ -1704,7 +1800,6 @@
             const othersListings = DB.getOthersListings(gameState.currentUsername);
 
             if (gameState.marketView === 'sell') {
-                // Sell view
                 const sellableWeapons = gameState.player.ownedWeapons.filter(w => gameState.player.weapon?.name !== w.name);
                 const sellableArmors = gameState.player.ownedArmors.filter(a => gameState.player.armor?.name !== a.name);
                 const sellablePets = gameState.player.ownedPets.filter(p => gameState.player.pet?.name !== p.name);
@@ -1822,7 +1917,6 @@
                 `;
             }
 
-            // Browse view
             return `
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
@@ -1836,7 +1930,6 @@
                     </div>
 
                     <div class="grid md:grid-cols-2 gap-6">
-                        <!-- My Listings -->
                         <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
                             <h3 class="text-lg md:text-xl font-bold mb-4">📦 Đồ Của Tôi Đang Bán</h3>
                             <div class="space-y-2 mb-4">
@@ -1872,7 +1965,6 @@
                             </button>
                         </div>
 
-                        <!-- Others' Listings -->
                         <div class="bg-gradient-to-br from-pink-900/50 to-purple-900/50 rounded-xl p-4 md:p-6 border-2 border-pink-500/30">
                             <h3 class="text-lg md:text-xl font-bold mb-4">🛒 Đồ Đang Bán</h3>
                             <div class="space-y-2 max-h-96 overflow-y-auto">
@@ -2029,6 +2121,7 @@
             const allUsers = DB.getAllUsers();
             const allRequests = DB.getAllWithdrawRequests();
             const allListings = DB.getAllMarketListings();
+            const allAdmins = DB.getAllAdmins();
             const pendingRequests = allRequests.filter(r => r.status === 'pending');
 
             return `
@@ -2056,8 +2149,41 @@
                         </div>
                         <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-xl p-4 border-2 border-purple-500/30">
                             <div class="text-3xl mb-2">📊</div>
-                            <div class="text-sm text-purple-300">Tổng yêu cầu</div>
-                            <div class="text-2xl font-bold">${allRequests.length}</div>
+                            <div class="text-sm text-purple-300">Tổng Admin</div>
+                            <div class="text-2xl font-bold">${allAdmins.length}</div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Management -->
+                    <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-xl p-6 border-2 border-red-500/30 mb-6">
+                        <h3 class="text-xl font-bold mb-4">👑 QUẢN LÝ ADMIN</h3>
+                        <div class="space-y-3">
+                            ${allAdmins.map(admin => `
+                                <div class="bg-black/30 p-4 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold text-lg">
+                                            ${admin} 
+                                            ${DB.isMasterAdmin(admin) ? '<span class="text-yellow-400 text-sm">(Master Admin - Không thể gỡ)</span>' : ''}
+                                        </div>
+                                        <div class="text-sm text-purple-300">Quyền: Quản lý toàn hệ thống</div>
+                                    </div>
+                                    ${!DB.isMasterAdmin(admin) ? `
+                                        <button
+                                            onclick="removeAdminUser('${admin}')"
+                                            class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-sm"
+                                        >
+                                            Gỡ Admin
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                            
+                            <button
+                                onclick="addAdminUser()"
+                                class="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold"
+                            >
+                                ➕ THÊM ADMIN MỚI
+                            </button>
                         </div>
                     </div>
 
@@ -2144,6 +2270,56 @@
             `;
         }
 
+        // ==================== SUPPORT MODAL ====================
+        function renderSupportModal() {
+            if (!gameState.showSupport) return '';
+
+            return `
+                <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick="toggleSupport()">
+                    <div class="bg-gradient-to-br from-purple-900/95 to-blue-900/95 rounded-2xl p-6 md:p-8 max-w-md w-full border-2 border-purple-500/50 shadow-2xl slide-in" onclick="event.stopPropagation()">
+                        <div class="text-center">
+                            <div class="text-6xl mb-4">💬</div>
+                            <h2 class="text-2xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                HỖ TRỢ NGƯỜI CHƠI
+                            </h2>
+                            
+                            <div class="bg-black/30 rounded-xl p-4 mb-6">
+                                <p class="text-purple-300 mb-4">
+                                    Gặp lỗi hoặc cần hỗ trợ?<br/>
+                                    Liên hệ ngay với chúng tôi qua Telegram:
+                                </p>
+                                <a 
+                                    href="https://t.me/NQ_CTV" 
+                                    target="_blank"
+                                    class="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 px-6 py-3 rounded-xl font-bold text-lg transform hover:scale-105 transition-all"
+                                >
+                                    <span class="text-2xl">📱</span>
+                                    @NQ_CTV
+                                </a>
+                            </div>
+
+                            <div class="text-sm text-purple-300 space-y-2">
+                                <p>📝 Hỗ trợ các vấn đề:</p>
+                                <ul class="text-left text-xs space-y-1 ml-6">
+                                    <li>• Lỗi game, bug kỹ thuật</li>
+                                    <li>• Vấn đề rút tiền</li>
+                                    <li>• Khiếu nại giao dịch</li>
+                                    <li>• Câu hỏi về tính năng</li>
+                                </ul>
+                            </div>
+
+                            <button
+                                onclick="toggleSupport()"
+                                class="mt-6 w-full py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-bold"
+                            >
+                                ❌ ĐÓNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         // ==================== MAIN RENDER ====================
         function render() {
             const root = document.getElementById('root');
@@ -2183,6 +2359,13 @@
                                             <span class="font-bold text-sm md:text-base">${gameState.player.exp}/${gameState.player.level * 100}</span>
                                         </div>
                                     </div>
+
+                                    <button
+                                        onclick="toggleSupport()"
+                                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold text-xs md:text-sm"
+                                    >
+                                        💬 Hỗ trợ
+                                    </button>
 
                                     <button
                                         onclick="handleLogout()"
@@ -2272,14 +2455,18 @@
                         <p class="text-center text-purple-300 text-xs md:text-sm">
                             ⚔️ GAME RPG ONLINE • FULL VERSION • Made with ❤️
                         </p>
+                        <p class="text-center text-purple-400 text-xs mt-1">
+                            Hỗ trợ: <a href="https://t.me/NQ_CTV" target="_blank" class="text-blue-400 hover:text-blue-300 underline">@NQ_CTV</a>
+                        </p>
                     </div>
+
+                    ${renderSupportModal()}
                 </div>
             `;
         }
 
         // ==================== INITIALIZATION ====================
         function init() {
-            // Check if already logged in
             const currentUser = DB.getCurrentUser();
             if (currentUser) {
                 const playerData = DB.getPlayerData(currentUser);
@@ -2296,7 +2483,6 @@
                 }
             }
 
-            // Check daily/weekly reset
             setInterval(() => {
                 if (!gameState.player) return;
                 
@@ -2327,7 +2513,6 @@
             render();
         }
 
-        // Start game
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', init);
         } else {
