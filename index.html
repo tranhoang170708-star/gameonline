@@ -7,6 +7,7 @@
     
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
     
@@ -21,7 +22,6 @@
             margin: 0;
             padding: 0;
             overflow-x: hidden;
-            background-color: #0f172a;
         }
 
         @keyframes ping {
@@ -48,31 +48,111 @@
             animation: bounce 1s infinite;
         }
 
-        .glass {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
         }
-        
-        .custom-scroll::-webkit-scrollbar {
-            width: 4px;
+
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
-        .custom-scroll::-webkit-scrollbar-track {
-            background: transparent;
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        .custom-scroll::-webkit-scrollbar-thumb {
-            background: #475569;
-            border-radius: 10px;
+
+        .slide-in {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-down {
+            animation: slideDown 0.5s ease-out;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(147, 51, 234, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(147, 51, 234, 0.8);
+        }
+
+        .damage-popup {
+            position: absolute;
+            font-weight: bold;
+            font-size: 24px;
+            pointer-events: none;
+            animation: damageFloat 1s ease-out forwards;
+        }
+
+        @keyframes damageFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-100px);
+            }
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .notification-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.95), rgba(139, 92, 246, 0.95));
+            border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
-<body class="text-slate-200">
+<body>
     <div id="root"></div>
 
     <script>
-        // ==========================================
-        // 1. CẤU HÌNH FIREBASE (DỮ LIỆU CỦA BẠN)
-        // ==========================================
+        // ==================== FIREBASE CONFIGURATION ====================
         const firebaseConfig = {
             apiKey: "AIzaSyDMLhduQOsbUPXuJ4l0zUj_fjc3k7pAUbI",
             authDomain: "myrpggame-5adb9.firebaseapp.com",
@@ -81,205 +161,2679 @@
             messagingSenderId: "788942574263",
             appId: "1:788942574263:web:ef450c3d0cf72afd317332",
             measurementId: "G-7T72ZT3V8R",
-            databaseURL: "https://myrpggame-5adb9-default-rtdb.asia-southeast1.firebasedatabase.app/" // Kiểm tra lại link này
+            databaseURL: "https://myrpggame-5adb9-default-rtdb.firebaseio.com/"
         };
 
-        // Khởi tạo Firebase
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
+        // Initialize Firebase
+        let db;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            console.log("✅ Firebase initialized successfully!");
+        } catch (e) {
+            console.error("❌ Firebase initialization error:", e);
+            alert("Lỗi kết nối Firebase! Vui lòng kiểm tra cấu hình.");
+        }
 
-        // ==========================================
-        // 2. TRẠNG THÁI GAME (GIỮ NGUYÊN CODE CŨ)
-        // ==========================================
-        let gameState = {
-            player: null,
-            isLoggedIn: false,
-            currentView: 'main', 
-            battle: null,
-            shopTab: 'weapon',
-            inventoryTab: 'all',
-            logs: [],
-            currentNotification: null,
-            market: [],
-            withdraws: []
-        };
+        // ==================== FIREBASE DATABASE CLASS ====================
+        class GameDatabase {
+            constructor() {
+                this.MASTER_ADMIN = 'Quyet170708';
+            }
 
-        const MASTER_ADMIN = "Quyet170708";
+            // ===== USER MANAGEMENT =====
+            async userExists(username) {
+                try {
+                    const snapshot = await db.ref('users/' + username).once('value');
+                    return snapshot.exists();
+                } catch (e) {
+                    console.error('Error checking user:', e);
+                    return false;
+                }
+            }
 
-        // ==========================================
-        // 3. HÀM LƯU DỮ LIỆU LÊN SERVER
-        // ==========================================
-        function saveGame() {
-            if (gameState.player && gameState.player.name) {
-                // Lưu lên Firebase
-                db.ref('users/' + gameState.player.name).set(gameState.player)
-                  .then(() => console.log("☁️ Đã đồng bộ dữ liệu lên Server!"))
-                  .catch(err => console.error("❌ Lỗi đồng bộ:", err));
-                
-                // Lưu dự phòng ở máy
-                localStorage.setItem('rpg_save_v1', JSON.stringify(gameState.player));
+            async createUser(username, password) {
+                try {
+                    const exists = await this.userExists(username);
+                    if (exists) {
+                        return { success: false, message: 'Username đã tồn tại!' };
+                    }
+
+                    const userData = {
+                        password: password,
+                        playerData: {
+                            name: username,
+                            hp: 100,
+                            maxHp: 100,
+                            atk: 2,
+                            def: 0,
+                            crit: 5,
+                            gold: 0,
+                            level: 1,
+                            exp: 0,
+                            currentStage: 1,
+                            totalMonstersKilled: 0,
+                            weapon: null,
+                            armor: null,
+                            pet: null,
+                            inventory: [],
+                            ownedWeapons: [],
+                            ownedArmors: [],
+                            ownedPets: [],
+                            dailyBosses: 2,
+                            weeklyBosses: 3,
+                            lastDailyReset: Date.now(),
+                            lastWeeklyReset: Date.now(),
+                        },
+                        createdAt: Date.now()
+                    };
+
+                    await db.ref('users/' + username).set(userData);
+                    console.log('✅ User created:', username);
+                    return { success: true, message: 'Tạo tài khoản thành công!' };
+                } catch (e) {
+                    console.error('Error creating user:', e);
+                    return { success: false, message: 'Lỗi tạo tài khoản!' };
+                }
+            }
+
+            async loginUser(username, password) {
+                try {
+                    const snapshot = await db.ref('users/' + username).once('value');
+                    
+                    if (!snapshot.exists()) {
+                        return { success: false, message: 'Username không tồn tại!' };
+                    }
+
+                    const userData = snapshot.val();
+                    if (userData.password !== password) {
+                        return { success: false, message: 'Sai mật khẩu!' };
+                    }
+
+                    return { 
+                        success: true, 
+                        message: 'Đăng nhập thành công!', 
+                        userData: userData.playerData 
+                    };
+                } catch (e) {
+                    console.error('Error logging in:', e);
+                    return { success: false, message: 'Lỗi đăng nhập!' };
+                }
+            }
+
+            async savePlayerData(username, playerData) {
+                try {
+                    await db.ref('users/' + username + '/playerData').set(playerData);
+                    console.log('✅ Player data saved:', username);
+                    return true;
+                } catch (e) {
+                    console.error('Error saving player data:', e);
+                    return false;
+                }
+            }
+
+            async getPlayerData(username) {
+                try {
+                    const snapshot = await db.ref('users/' + username + '/playerData').once('value');
+                    return snapshot.exists() ? snapshot.val() : null;
+                } catch (e) {
+                    console.error('Error getting player data:', e);
+                    return null;
+                }
+            }
+
+            // ===== ADMIN MANAGEMENT =====
+            async getAllAdmins() {
+                try {
+                    const snapshot = await db.ref('admins').once('value');
+                    const admins = snapshot.exists() ? snapshot.val() : [];
+                    if (!admins.includes(this.MASTER_ADMIN)) {
+                        admins.push(this.MASTER_ADMIN);
+                        await db.ref('admins').set(admins);
+                    }
+                    return admins;
+                } catch (e) {
+                    console.error('Error getting admins:', e);
+                    return [this.MASTER_ADMIN];
+                }
+            }
+
+            async isAdmin(username) {
+                const admins = await this.getAllAdmins();
+                return admins.includes(username);
+            }
+
+            isMasterAdmin(username) {
+                return username === this.MASTER_ADMIN;
+            }
+
+            async addAdmin(username) {
+                try {
+                    const exists = await this.userExists(username);
+                    if (!exists) {
+                        return { success: false, message: 'User không tồn tại!' };
+                    }
+
+                    const admins = await this.getAllAdmins();
+                    if (admins.includes(username)) {
+                        return { success: false, message: 'User này đã là Admin!' };
+                    }
+
+                    admins.push(username);
+                    await db.ref('admins').set(admins);
+                    return { success: true, message: `Đã thêm ${username} vào Admin!` };
+                } catch (e) {
+                    console.error('Error adding admin:', e);
+                    return { success: false, message: 'Lỗi thêm admin!' };
+                }
+            }
+
+            async removeAdmin(username) {
+                try {
+                    if (username === this.MASTER_ADMIN) {
+                        return { success: false, message: 'Không thể gỡ Master Admin!' };
+                    }
+
+                    const admins = await this.getAllAdmins();
+                    const newAdmins = admins.filter(a => a !== username);
+                    
+                    if (newAdmins.length < admins.length) {
+                        await db.ref('admins').set(newAdmins);
+                        return { success: true, message: `Đã gỡ ${username} khỏi Admin!` };
+                    }
+                    
+                    return { success: false, message: 'User không phải Admin!' };
+                } catch (e) {
+                    console.error('Error removing admin:', e);
+                    return { success: false, message: 'Lỗi gỡ admin!' };
+                }
+            }
+
+            // ===== GOLD MODIFICATION =====
+            async modifyUserGold(username, amount) {
+                try {
+                    const exists = await this.userExists(username);
+                    if (!exists) {
+                        return { success: false, message: `User "${username}" không tồn tại!` };
+                    }
+
+                    const snapshot = await db.ref('users/' + username + '/playerData/gold').once('value');
+                    const currentGold = snapshot.exists() ? snapshot.val() : 0;
+                    const newGold = Math.max(0, currentGold + amount);
+                    
+                    await db.ref('users/' + username + '/playerData/gold').set(newGold);
+                    
+                    console.log('✅ Gold modified:', username, 'New balance:', newGold);
+                    return { success: true, gold: newGold };
+                } catch (e) {
+                    console.error('Error modifying gold:', e);
+                    return { success: false, message: 'Lỗi cộng/trừ vàng!' };
+                }
+            }
+
+            // ===== NOTIFICATIONS =====
+            async getAllNotifications() {
+                try {
+                    const snapshot = await db.ref('notifications').once('value');
+                    return snapshot.exists() ? snapshot.val() : [];
+                } catch (e) {
+                    console.error('Error getting notifications:', e);
+                    return [];
+                }
+            }
+
+            async addNotification(message, type = 'info') {
+                try {
+                    const notifications = await this.getAllNotifications();
+                    const newNotif = {
+                        id: Date.now(),
+                        message: message,
+                        type: type,
+                        createdAt: Date.now(),
+                        dismissed: false
+                    };
+                    notifications.unshift(newNotif);
+                    
+                    // Giữ tối đa 50 thông báo
+                    if (notifications.length > 50) {
+                        notifications.splice(50);
+                    }
+                    
+                    await db.ref('notifications').set(notifications);
+                    return newNotif;
+                } catch (e) {
+                    console.error('Error adding notification:', e);
+                    return null;
+                }
+            }
+
+            async getActiveNotifications() {
+                const notifications = await this.getAllNotifications();
+                const now = Date.now();
+                const dayMs = 24 * 60 * 60 * 1000;
+                return notifications.filter(n => !n.dismissed && (now - n.createdAt) < dayMs);
+            }
+
+            async dismissNotification(notifId) {
+                try {
+                    const notifications = await this.getAllNotifications();
+                    const notif = notifications.find(n => n.id === notifId);
+                    if (notif) {
+                        notif.dismissed = true;
+                        await db.ref('notifications').set(notifications);
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    console.error('Error dismissing notification:', e);
+                    return false;
+                }
+            }
+
+            // ===== MARKET =====
+            async getAllMarketListings() {
+                try {
+                    const snapshot = await db.ref('market').once('value');
+                    return snapshot.exists() ? snapshot.val() : [];
+                } catch (e) {
+                    console.error('Error getting market listings:', e);
+                    return [];
+                }
+            }
+
+            async addMarketListing(seller, item, type, price) {
+                try {
+                    const listings = await this.getAllMarketListings();
+                    const newListing = {
+                        id: Date.now(),
+                        seller: seller,
+                        item: item,
+                        type: type,
+                        price: price,
+                        listedAt: Date.now()
+                    };
+                    listings.push(newListing);
+                    await db.ref('market').set(listings);
+                    return newListing;
+                } catch (e) {
+                    console.error('Error adding market listing:', e);
+                    return null;
+                }
+            }
+
+            async removeMarketListing(listingId) {
+                try {
+                    const listings = await this.getAllMarketListings();
+                    const listing = listings.find(l => l.id === listingId);
+                    const newListings = listings.filter(l => l.id !== listingId);
+                    await db.ref('market').set(newListings);
+                    return listing;
+                } catch (e) {
+                    console.error('Error removing market listing:', e);
+                    return null;
+                }
+            }
+
+            async getMyListings(username) {
+                const listings = await this.getAllMarketListings();
+                return listings.filter(l => l.seller === username);
+            }
+
+            async getOthersListings(username) {
+                const listings = await this.getAllMarketListings();
+                return listings.filter(l => l.seller !== username);
+            }
+
+            // ===== WITHDRAW =====
+            async getAllWithdrawRequests() {
+                try {
+                    const snapshot = await db.ref('withdrawals').once('value');
+                    return snapshot.exists() ? snapshot.val() : [];
+                } catch (e) {
+                    console.error('Error getting withdraw requests:', e);
+                    return [];
+                }
+            }
+
+            async addWithdrawRequest(username, method, amount, details) {
+                try {
+                    const requests = await this.getAllWithdrawRequests();
+                    const newRequest = {
+                        id: Date.now(),
+                        username: username,
+                        method: method,
+                        amount: amount,
+                        details: details,
+                        status: 'pending',
+                        date: new Date().toLocaleString('vi-VN'),
+                        createdAt: Date.now()
+                    };
+                    
+                    if (method === 'card') {
+                        newRequest.cardCode = this.generateCardCode();
+                    }
+                    
+                    requests.push(newRequest);
+                    await db.ref('withdrawals').set(requests);
+                    return newRequest;
+                } catch (e) {
+                    console.error('Error adding withdraw request:', e);
+                    return null;
+                }
+            }
+
+            async updateWithdrawStatus(requestId, status) {
+                try {
+                    const requests = await this.getAllWithdrawRequests();
+                    const request = requests.find(r => r.id === requestId);
+                    if (request) {
+                        request.status = status;
+                        await db.ref('withdrawals').set(requests);
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    console.error('Error updating withdraw status:', e);
+                    return false;
+                }
+            }
+
+            async deleteWithdrawRequest(requestId) {
+                try {
+                    const requests = await this.getAllWithdrawRequests();
+                    const newRequests = requests.filter(r => r.id !== requestId);
+                    await db.ref('withdrawals').set(newRequests);
+                    return true;
+                } catch (e) {
+                    console.error('Error deleting withdraw request:', e);
+                    return false;
+                }
+            }
+
+            async getUserWithdrawRequests(username) {
+                const requests = await this.getAllWithdrawRequests();
+                return requests.filter(r => r.username === username);
+            }
+
+            generateCardCode() {
+                const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                let code = '';
+                for (let i = 0; i < 12; i++) {
+                    code += chars[Math.floor(Math.random() * chars.length)];
+                }
+                return code;
+            }
+
+            // ===== GET ALL USERS =====
+            async getAllUsers() {
+                try {
+                    const snapshot = await db.ref('users').once('value');
+                    return snapshot.exists() ? snapshot.val() : {};
+                } catch (e) {
+                    console.error('Error getting all users:', e);
+                    return {};
+                }
             }
         }
 
-        // ==========================================
-        // 4. HÀM XỬ LÝ ĐĂNG NHẬP (LẤY TỪ SERVER)
-        // ==========================================
-        function handleLogin() {
-            const nameInput = document.getElementById('login-name').value.trim();
-            if (!nameInput) {
-                alert("Vui lòng nhập tên nhân vật!");
+        const DB = new GameDatabase();
+
+        // ==================== GAME STATE ====================
+        let gameState = {
+            isLoggedIn: false,
+            currentUsername: null,
+            authView: 'login',
+            authError: '',
+            player: null,
+            currentView: 'game',
+            battleLog: [],
+            monster: null,
+            isInBattle: false,
+            canAttack: true,
+            autoFight: true,
+            adBoosts: {
+                hp: { active: false, endTime: 0 },
+                atk: { active: false, endTime: 0 },
+                def: { active: false, endTime: 0 }
+            },
+            adsWatched: 0,
+            marketView: 'browse',
+            selectedItemToSell: null,
+            sellPrice: '',
+            showSupport: false,
+            currentNotification: null
+        };
+
+        // ==================== SHOP DATA ====================
+        const weaponShop = [
+            { name: 'Kiếm Gỗ', atk: 20, price: 200, icon: '🪵' },
+            { name: 'Kiếm Đá', atk: 35, price: 500, icon: '🪨' },
+            { name: 'Kiếm Sắt', atk: 50, price: 1000, icon: '⚔️' },
+            { name: 'Kiếm Vàng', atk: 75, price: 2000, icon: '💛' },
+            { name: 'Kiếm Kim Cương', atk: 125, price: 3000, icon: '💎' },
+            { name: 'Kiếm Cầu Vồng', atk: 180, price: 4500, icon: '🌈' },
+            { name: 'Kiếm Thánh', atk: 300, price: 7000, icon: '✨' },
+        ];
+
+        const armorShop = [
+            { name: 'Giáp Vải', def: 3, hp: 50, price: 500, icon: '👕' },
+            { name: 'Giáp Đồng', def: 7, hp: 75, price: 1000, icon: '🥉' },
+            { name: 'Giáp Sắt', def: 10, hp: 100, price: 1500, icon: '🛡️' },
+            { name: 'Giáp Kim Cương', def: 15, hp: 150, price: 3000, icon: '💠' },
+            { name: 'Giáp Thánh', def: 30, hp: 300, price: 5000, icon: '👑' },
+        ];
+
+        const petShop = [
+            { name: 'Gà Con', atkBonus: 5, price: 500, icon: '🐔' },
+            { name: 'Chó Con', atkBonus: 8, price: 1000, icon: '🐕' },
+            { name: 'Sói Xám', atkBonus: 13, price: 1500, icon: '🐺' },
+            { name: 'Voi Ma Mút', atkBonus: 20, price: 2300, icon: '🐘' },
+            { name: 'Rồng Thần', atkBonus: 30, price: 3500, icon: '🐉' },
+        ];
+
+        // ==================== AUTH FUNCTIONS ====================
+        async function handleRegister() {
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value;
+
+            if (username.length < 3) {
+                gameState.authError = 'Username phải có ít nhất 3 ký tự!';
+                render();
                 return;
             }
 
-            // Tải dữ liệu từ Firebase
-            db.ref('users/' + nameInput).once('value', (snapshot) => {
-                if (snapshot.exists()) {
-                    gameState.player = snapshot.val();
-                    console.log("✅ Đã tải dữ liệu người chơi cũ.");
-                } else {
-                    // Tạo người chơi mới
-                    gameState.player = {
-                        name: nameInput,
-                        gold: 1000,
-                        hp: 100,
-                        maxHp: 100,
-                        atk: 10,
-                        level: 1,
-                        items: [],
-                        lastDailyReset: Date.now(),
-                        lastWeeklyReset: Date.now(),
-                        dailyBosses: 2,
-                        weeklyBosses: 3
-                    };
-                    saveGame();
-                    console.log("✨ Đã tạo tài khoản mới trên Server.");
-                }
+            if (password.length < 5) {
+                gameState.authError = 'Password phải có ít nhất 5 ký tự!';
+                render();
+                return;
+            }
 
+            const result = await DB.createUser(username, password);
+            
+            if (result.success) {
+                gameState.authError = '';
+                gameState.authView = 'login';
+                addLog('✅ ' + result.message, 'success');
+                render();
+            } else {
+                gameState.authError = result.message;
+                render();
+            }
+        }
+
+        async function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            const result = await DB.loginUser(username, password);
+            
+            if (result.success) {
                 gameState.isLoggedIn = true;
-
-                // THIẾT LẬP ĐỒNG BỘ THỜI GIAN THỰC
-                db.ref('users/' + nameInput).on('value', (syncSnapshot) => {
-                    if (syncSnapshot.exists()) {
-                        gameState.player = syncSnapshot.val();
-                        render(); 
+                gameState.currentUsername = username;
+                gameState.player = result.userData;
+                gameState.authError = '';
+                
+                // Lắng nghe thay đổi real-time từ Firebase
+                db.ref('users/' + username + '/playerData').on('value', (snapshot) => {
+                    if (snapshot.exists()) {
+                        gameState.player = snapshot.val();
+                        render();
                     }
                 });
-
+                
+                // Kiểm tra thông báo
+                checkNotifications();
+                
+                setTimeout(() => {
+                    if (!gameState.isInBattle && gameState.currentView === 'game') {
+                        startBattle();
+                    }
+                }, 500);
+                
                 render();
-            });
+            } else {
+                gameState.authError = result.message;
+                render();
+            }
         }
 
-        // ==========================================
-        // 5. CÁC HÀM GAME LOGIC (GIỮ NGUYÊN KHÔNG THIẾU CHỮ)
-        // ==========================================
-        
-        // [Copy toàn bộ các hàm startBattle, endBattle, useItem, buyItem, ... từ file gốc của bạn vào đây]
-        // Vì code của bạn rất dài, tôi đảm bảo các hàm này sẽ hoạt động với gameState.player mới
-
-        function adminAddGold() {
-            const target = document.getElementById('admin-target').value.trim();
-            const amount = parseInt(document.getElementById('admin-gold').value);
-            if(!target || isNaN(amount)) return alert("Nhập sai thông tin!");
-
-            db.ref('users/' + target).once('value', snapshot => {
-                if(snapshot.exists()){
-                    let currentGold = snapshot.val().gold || 0;
-                    db.ref('users/' + target).update({ gold: currentGold + amount });
-                    alert("Đã cộng " + amount + " vàng cho " + target);
-                } else {
-                    alert("Người chơi này không tồn tại!");
+        function handleLogout() {
+            if (confirm('Bạn có chắc muốn đăng xuất?')) {
+                // Tắt listener
+                if (gameState.currentUsername) {
+                    db.ref('users/' + gameState.currentUsername + '/playerData').off();
                 }
+                
+                gameState.isLoggedIn = false;
+                gameState.currentUsername = null;
+                gameState.player = null;
+                gameState.authError = '';
+                gameState.authView = 'login';
+                render();
+            }
+        }
+
+        // ==================== NOTIFICATION FUNCTIONS ====================
+        async function checkNotifications() {
+            const activeNotifs = await DB.getActiveNotifications();
+            if (activeNotifs.length > 0 && !gameState.currentNotification) {
+                gameState.currentNotification = activeNotifs[0];
+                render();
+            }
+        }
+
+        async function dismissCurrentNotification() {
+            if (gameState.currentNotification) {
+                await DB.dismissNotification(gameState.currentNotification.id);
+                gameState.currentNotification = null;
+                checkNotifications();
+                render();
+            }
+        }
+
+        // ==================== SAVE/LOAD FUNCTIONS ====================
+        async function saveGame() {
+            if (gameState.currentUsername && gameState.player) {
+                await DB.savePlayerData(gameState.currentUsername, gameState.player);
+            }
+        }
+
+        // ==================== STATS CALCULATION ====================
+        function getTotalStats() {
+            let totalAtk = gameState.player.atk;
+            let totalDef = gameState.player.def;
+            let totalHp = gameState.player.maxHp;
+            let totalCrit = gameState.player.crit;
+
+            if (gameState.player.weapon) totalAtk += gameState.player.weapon.atk;
+            if (gameState.player.armor) {
+                totalDef += gameState.player.armor.def;
+                totalHp += gameState.player.armor.hp;
+            }
+            if (gameState.player.pet) {
+                totalAtk += Math.floor(totalAtk * (gameState.player.pet.atkBonus / 100));
+            }
+
+            if (gameState.adBoosts.hp.active && Date.now() < gameState.adBoosts.hp.endTime) totalHp += 100;
+            if (gameState.adBoosts.atk.active && Date.now() < gameState.adBoosts.atk.endTime) totalAtk += 75;
+            if (gameState.adBoosts.def.active && Date.now() < gameState.adBoosts.def.endTime) totalDef += 10;
+
+            return { totalAtk, totalDef, totalHp, totalCrit };
+        }
+
+        // ==================== MONSTER GENERATION ====================
+        function generateMonster(stage, isBoss = false, bossType = 'normal') {
+            const baseHp = 30 + stage * 15;
+            const baseAtk = 1 + stage * 0.5;
+            
+            let hp = baseHp;
+            let atk = baseAtk;
+            let goldReward = Math.floor((10 + stage * 5) * 0.6);
+            let expReward = Math.floor((20 + stage * 10) * 0.7);
+            let name = `Quái Vật Lv.${stage}`;
+            let icon = '👾';
+
+            if (isBoss) {
+                if (bossType === 'stage') {
+                    hp = baseHp * 1.3;
+                    atk = baseAtk * 1.2;
+                    goldReward = Math.floor(goldReward * 1.8);
+                    expReward = Math.floor(expReward * 1.8);
+                    name = `Boss Ải ${Math.floor(stage / 10) + 1}`;
+                    icon = '👹';
+                } else if (bossType === 'daily') {
+                    hp = baseHp * 3;
+                    atk = baseAtk * 2;
+                    goldReward = Math.floor(goldReward * 4);
+                    expReward = Math.floor(expReward * 2.5);
+                    name = `Boss Ngày`;
+                    icon = '🔥';
+                } else if (bossType === 'weekly') {
+                    hp = baseHp * 5;
+                    atk = baseAtk * 3;
+                    goldReward = Math.floor(goldReward * 7);
+                    expReward = Math.floor(expReward * 4);
+                    name = `Boss Tuần`;
+                    icon = '⚡';
+                }
+            }
+
+            return {
+                name,
+                icon,
+                hp: Math.floor(hp),
+                maxHp: Math.floor(hp),
+                atk: Math.floor(atk),
+                goldReward: Math.floor(goldReward),
+                expReward: Math.floor(expReward),
+                stage,
+                isBoss,
+                bossType
+            };
+        }
+
+        // ==================== BATTLE SYSTEM ====================
+        function addLog(message, type = 'info') {
+            gameState.battleLog.push({ message, type, time: Date.now() });
+            if (gameState.battleLog.length > 10) {
+                gameState.battleLog = gameState.battleLog.slice(-10);
+            }
+            render();
+        }
+
+        function startBattle(bossType = null) {
+            const isBoss = bossType !== null;
+            let newMonster;
+
+            if (bossType === 'daily') {
+                if (gameState.player.dailyBosses <= 0) {
+                    addLog('⚠️ Bạn đã hết lượt đánh Boss Ngày!', 'error');
+                    return;
+                }
+                newMonster = generateMonster(gameState.player.currentStage, true, 'daily');
+            } else if (bossType === 'weekly') {
+                if (gameState.player.weeklyBosses <= 0) {
+                    addLog('⚠️ Bạn đã hết lượt đánh Boss Tuần!', 'error');
+                    return;
+                }
+                newMonster = generateMonster(gameState.player.currentStage, true, 'weekly');
+            } else {
+                const isStageBoss = gameState.player.totalMonstersKilled > 0 && gameState.player.totalMonstersKilled % 10 === 0;
+                newMonster = generateMonster(gameState.player.currentStage, isStageBoss, isStageBoss ? 'stage' : null);
+            }
+
+            gameState.monster = newMonster;
+            gameState.isInBattle = true;
+            gameState.canAttack = true;
+            gameState.battleLog = [];
+            addLog(`⚔️ Chiến đấu với ${newMonster.icon} ${newMonster.name}!`, 'info');
+            addLog(`💡 Click vào quái để tấn công!`, 'info');
+        }
+
+        function playerAttack(e) {
+            if (!gameState.canAttack || !gameState.monster || !gameState.isInBattle) return;
+
+            const stats = getTotalStats();
+            const isCrit = Math.random() * 100 < stats.totalCrit;
+            let damage = stats.totalAtk;
+            if (isCrit) damage *= 2;
+
+            gameState.monster.hp = Math.max(0, gameState.monster.hp - damage);
+
+            addLog(`💥 Bạn gây ${damage} sát thương${isCrit ? ' (CHÍ MẠNG!)' : ''}`, 'success');
+
+            gameState.canAttack = false;
+            setTimeout(() => {
+                gameState.canAttack = true;
+            }, 200);
+
+            if (gameState.monster.hp <= 0) {
+                handleVictory(gameState.monster);
+            } else {
+                setTimeout(() => monsterAttack(), 500);
+            }
+        }
+
+        function monsterAttack() {
+            if (!gameState.monster || !gameState.isInBattle) return;
+
+            const stats = getTotalStats();
+            const damage = Math.max(1, gameState.monster.atk - stats.totalDef);
+            gameState.player.hp = Math.max(0, gameState.player.hp - damage);
+
+            addLog(`🔴 ${gameState.monster.name} gây ${damage} sát thương!`, 'error');
+
+            if (gameState.player.hp <= 0) {
+                handleDefeat();
+            } else {
+                render();
+            }
+        }
+
+        function handleVictory(defeatedMonster) {
+            const newGold = gameState.player.gold + defeatedMonster.goldReward;
+            const newExp = gameState.player.exp + defeatedMonster.expReward;
+            const expToLevel = gameState.player.level * 100;
+            
+            let newLevel = gameState.player.level;
+            let remainingExp = newExp;
+            let newAtk = gameState.player.atk;
+            let newMaxHp = gameState.player.maxHp;
+
+            while (remainingExp >= expToLevel) {
+                remainingExp -= expToLevel;
+                newLevel++;
+                newAtk += 2;
+                newMaxHp += 10;
+            }
+
+            gameState.player.gold = newGold;
+            gameState.player.exp = remainingExp;
+            gameState.player.level = newLevel;
+            gameState.player.atk = newAtk;
+            gameState.player.maxHp = newMaxHp;
+            gameState.player.hp = gameState.player.maxHp;
+
+            if (defeatedMonster.bossType === 'daily') {
+                gameState.player.dailyBosses--;
+            } else if (defeatedMonster.bossType === 'weekly') {
+                gameState.player.weeklyBosses--;
+            } else if (!defeatedMonster.isBoss) {
+                gameState.player.currentStage++;
+                gameState.player.totalMonstersKilled++;
+            } else if (defeatedMonster.bossType === 'stage') {
+                gameState.player.currentStage++;
+                gameState.player.totalMonstersKilled++;
+            }
+
+            saveGame();
+
+            addLog(`🎉 Chiến thắng! +${defeatedMonster.goldReward}💰 +${defeatedMonster.expReward}⭐`, 'success');
+            if (newLevel > gameState.player.level) {
+                addLog(`🆙 Level Up! Lv.${newLevel}`, 'success');
+            }
+
+            gameState.isInBattle = false;
+            gameState.monster = null;
+
+            if (gameState.autoFight && gameState.currentView === 'game') {
+                setTimeout(() => {
+                    if (gameState.currentView === 'game' && !gameState.isInBattle) {
+                        startBattle();
+                    }
+                }, 1500);
+            }
+        }
+
+        function handleDefeat() {
+            addLog('💀 Bạn đã thua! -50% vàng', 'error');
+            gameState.player.gold = Math.floor(gameState.player.gold * 0.5);
+            gameState.player.hp = gameState.player.maxHp;
+            saveGame();
+            gameState.isInBattle = false;
+            gameState.monster = null;
+            
+            if (gameState.autoFight && gameState.currentView === 'game') {
+                setTimeout(() => {
+                    if (gameState.currentView === 'game' && !gameState.isInBattle) {
+                        startBattle();
+                    }
+                }, 2000);
+            }
+        }
+
+        function toggleAutoFight() {
+            gameState.autoFight = !gameState.autoFight;
+            render();
+            
+            if (gameState.autoFight && !gameState.isInBattle && gameState.currentView === 'game') {
+                setTimeout(() => {
+                    if (!gameState.isInBattle && gameState.currentView === 'game') {
+                        startBattle();
+                    }
+                }, 500);
+            }
+        }
+
+        // ==================== SHOP FUNCTIONS ====================
+        function buyItem(item, type) {
+            if (gameState.player.gold < item.price) {
+                addLog('⚠️ Không đủ vàng!', 'error');
+                return;
+            }
+
+            let owned = false;
+            if (type === 'weapon') {
+                owned = gameState.player.ownedWeapons.some(w => w.name === item.name);
+            } else if (type === 'armor') {
+                owned = gameState.player.ownedArmors.some(a => a.name === item.name);
+            } else if (type === 'pet') {
+                owned = gameState.player.ownedPets.some(p => p.name === item.name);
+            }
+
+            if (owned) {
+                addLog('⚠️ Bạn đã sở hữu vật phẩm này!', 'error');
+                return;
+            }
+
+            gameState.player.gold -= item.price;
+            
+            if (type === 'weapon') {
+                gameState.player.ownedWeapons.push(item);
+                gameState.player.weapon = item;
+            } else if (type === 'armor') {
+                gameState.player.ownedArmors.push(item);
+                gameState.player.armor = item;
+                gameState.player.maxHp += item.hp;
+                gameState.player.hp = gameState.player.maxHp;
+            } else if (type === 'pet') {
+                gameState.player.ownedPets.push(item);
+                gameState.player.pet = item;
+            }
+
+            saveGame();
+            addLog(`✅ Đã mua và trang bị ${item.icon} ${item.name}!`, 'success');
+        }
+
+        function equipItem(item, type) {
+            if (type === 'weapon') {
+                if (gameState.player.weapon?.name === item.name) {
+                    addLog('⚠️ Đang sử dụng vũ khí này rồi!', 'error');
+                    return;
+                }
+                gameState.player.weapon = item;
+                addLog(`✅ Đã trang bị ${item.icon} ${item.name}!`, 'success');
+            } else if (type === 'armor') {
+                if (gameState.player.armor?.name === item.name) {
+                    addLog('⚠️ Đang sử dụng giáp này rồi!', 'error');
+                    return;
+                }
+                
+                if (gameState.player.armor) {
+                    gameState.player.maxHp -= gameState.player.armor.hp;
+                }
+                
+                gameState.player.armor = item;
+                gameState.player.maxHp += item.hp;
+                
+                if (gameState.player.hp > gameState.player.maxHp) {
+                    gameState.player.hp = gameState.player.maxHp;
+                }
+                
+                addLog(`✅ Đã trang bị ${item.icon} ${item.name}!`, 'success');
+            } else if (type === 'pet') {
+                if (gameState.player.pet?.name === item.name) {
+                    addLog('⚠️ Đang sử dụng pet này rồi!', 'error');
+                    return;
+                }
+                gameState.player.pet = item;
+                addLog(`✅ Đã triệu hồi ${item.icon} ${item.name}!`, 'success');
+            }
+            
+            saveGame();
+            render();
+        }
+
+        // ==================== MARKET FUNCTIONS ====================
+        function canSellItem(item, type) {
+            if (type === 'weapon' && gameState.player.weapon?.name === item.name) return false;
+            if (type === 'armor' && gameState.player.armor?.name === item.name) return false;
+            if (type === 'pet' && gameState.player.pet?.name === item.name) return false;
+            return true;
+        }
+
+        function selectItemToSell(item, type) {
+            if (!canSellItem(item, type)) {
+                alert('Không thể bán đồ đang trang bị! Vui lòng tháo ra trước.');
+                return;
+            }
+            gameState.selectedItemToSell = { item, type };
+            gameState.marketView = 'sell';
+            render();
+        }
+
+        async function listItemForSale() {
+            const price = parseInt(gameState.sellPrice);
+            
+            if (!price || price <= 0) {
+                alert('Vui lòng nhập giá hợp lệ!');
+                return;
+            }
+
+            if (!gameState.selectedItemToSell) {
+                alert('Vui lòng chọn vật phẩm muốn bán!');
+                return;
+            }
+
+            const { item, type } = gameState.selectedItemToSell;
+
+            if (type === 'weapon') {
+                gameState.player.ownedWeapons = gameState.player.ownedWeapons.filter(w => w.name !== item.name);
+            } else if (type === 'armor') {
+                gameState.player.ownedArmors = gameState.player.ownedArmors.filter(a => a.name !== item.name);
+            } else if (type === 'pet') {
+                gameState.player.ownedPets = gameState.player.ownedPets.filter(p => p.name !== item.name);
+            }
+
+            await DB.addMarketListing(gameState.currentUsername, item, type, price);
+            
+            saveGame();
+            gameState.selectedItemToSell = null;
+            gameState.sellPrice = '';
+            gameState.marketView = 'browse';
+            
+            addLog(`✅ Đã đăng bán ${item.icon} ${item.name} với giá ${price.toLocaleString()}đ!`, 'success');
+            render();
+        }
+
+        async function buyFromMarket(listing) {
+            if (gameState.player.gold < listing.price) {
+                alert('Không đủ vàng để mua!');
+                return;
+            }
+
+            gameState.player.gold -= listing.price;
+
+            const { item, type } = listing;
+            if (type === 'weapon') {
+                gameState.player.ownedWeapons.push(item);
+            } else if (type === 'armor') {
+                gameState.player.ownedArmors.push(item);
+            } else if (type === 'pet') {
+                gameState.player.ownedPets.push(item);
+            }
+
+            const sellerData = await DB.getPlayerData(listing.seller);
+            if (sellerData) {
+                sellerData.gold += listing.price;
+                await DB.savePlayerData(listing.seller, sellerData);
+            }
+
+            await DB.removeMarketListing(listing.id);
+
+            saveGame();
+            addLog(`✅ Đã mua ${item.icon} ${item.name} từ ${listing.seller}!`, 'success');
+            render();
+        }
+
+        async function removeListing(listingId) {
+            const listing = await DB.removeMarketListing(listingId);
+            
+            if (listing) {
+                const { item, type } = listing;
+                if (type === 'weapon') {
+                    gameState.player.ownedWeapons.push(item);
+                } else if (type === 'armor') {
+                    gameState.player.ownedArmors.push(item);
+                } else if (type === 'pet') {
+                    gameState.player.ownedPets.push(item);
+                }
+                
+                saveGame();
+                addLog(`✅ Đã gỡ ${item.icon} ${item.name} khỏi chợ!`, 'success');
+                render();
+            }
+        }
+
+        // ==================== UPGRADE FUNCTIONS ====================
+        function upgradeStats(stat) {
+            const costs = {
+                atk: 100 + gameState.player.atk * 50,
+                hp: 150 + gameState.player.maxHp * 2,
+                crit: 200 + gameState.player.crit * 100
+            };
+
+            if (gameState.player.gold < costs[stat]) {
+                addLog('⚠️ Không đủ vàng để nâng cấp!', 'error');
+                return;
+            }
+
+            gameState.player.gold -= costs[stat];
+            
+            if (stat === 'atk') {
+                gameState.player.atk += 5;
+            } else if (stat === 'hp') {
+                gameState.player.maxHp += 20;
+                gameState.player.hp = gameState.player.maxHp;
+            } else if (stat === 'crit') {
+                gameState.player.crit += 2;
+            }
+
+            saveGame();
+            addLog(`⬆️ Đã nâng cấp ${stat.toUpperCase()}!`, 'success');
+        }
+
+        // ==================== AD FUNCTIONS ====================
+        function calculateAdReward() {
+            const baseReward = 50;
+            const difficulty = Math.max(1, gameState.player.currentStage / 10);
+            const randomBonus = Math.random() * 0.5 + 0.75;
+            return Math.floor(baseReward * difficulty * randomBonus * 0.7);
+        }
+
+        function loadAdsterraScript(callback) {
+            const script = document.createElement('script');
+            script.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
+            script.async = true;
+            script.onload = callback;
+            script.onerror = () => {
+                console.log('Adsterra script load failed');
+                if (callback) callback();
+            };
+            document.body.appendChild(script);
+        }
+
+        function watchAd(type) {
+            addLog('📺 Đang tải quảng cáo...', 'info');
+            
+            loadAdsterraScript(() => {
+                setTimeout(() => {
+                    gameState.adsWatched++;
+                    
+                    if (type === 'hp' || type === 'atk' || type === 'def') {
+                        const endTime = Date.now() + 10 * 60 * 1000;
+                        gameState.adBoosts[type] = { active: true, endTime };
+                        addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
+                    } else if (type === 'coin1') {
+                        const bonus = calculateAdReward();
+                        gameState.player.gold += bonus;
+                        saveGame();
+                        addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
+                    } else if (type === 'coin2') {
+                        const bonus = calculateAdReward() * 2;
+                        gameState.player.gold += bonus;
+                        saveGame();
+                        addLog(`💎 +${bonus} Vàng từ 2 quảng cáo!`, 'success');
+                    }
+                    render();
+                }, 2000);
             });
         }
 
-        // ==========================================
-        // 6. GIAO DIỆN (RENDER)
-        // ==========================================
-        function render() {
-            const root = document.getElementById('root');
+        // ==================== WITHDRAW FUNCTIONS ====================
+        async function submitWithdraw(method) {
+            let formData = {};
             
-            if (!gameState.isLoggedIn) {
-                root.innerHTML = `
-                    <div class="min-h-screen flex items-center justify-center p-4 bg-[url('https://wallpaperaccess.com/full/156340.jpg')] bg-cover">
-                        <div class="glass p-8 rounded-2xl w-full max-w-sm shadow-2xl">
-                            <h1 class="text-4xl font-black text-center mb-2 text-yellow-500 italic">RPG ONLINE</h1>
-                            <p class="text-center text-slate-400 text-sm mb-8 italic text-xs">Dữ liệu sẽ được lưu trên Cloud Server</p>
-                            
+            if (method === 'bank') {
+                formData = {
+                    bankName: document.getElementById('bankName').value,
+                    account: document.getElementById('bankAccount').value,
+                    owner: document.getElementById('bankOwner').value,
+                    amount: document.getElementById('bankAmount').value
+                };
+                
+                if (!formData.account || !formData.owner || !formData.amount) {
+                    alert('Vui lòng điền đầy đủ thông tin!');
+                    return;
+                }
+
+                if (parseInt(formData.amount) < 20000) {
+                    alert('Số tiền tối thiểu là 20,000đ');
+                    return;
+                }
+            } else if (method === 'momo') {
+                formData = {
+                    phone: document.getElementById('momoPhone').value,
+                    owner: document.getElementById('momoOwner').value,
+                    amount: document.getElementById('momoAmount').value
+                };
+                
+                if (!formData.phone || !formData.owner || !formData.amount) {
+                    alert('Vui lòng điền đầy đủ thông tin!');
+                    return;
+                }
+
+                if (parseInt(formData.amount) < 20000) {
+                    alert('Số tiền tối thiểu là 20,000đ');
+                    return;
+                }
+            } else if (method === 'card') {
+                formData = {
+                    amount: document.getElementById('cardAmount').value
+                };
+            }
+
+            await DB.addWithdrawRequest(gameState.currentUsername, method, parseInt(formData.amount), formData);
+            
+            alert(`✅ Yêu cầu rút ${parseInt(formData.amount).toLocaleString()}đ đã được gửi!\n\nVui lòng chờ admin duyệt.`);
+            gameState.currentView = 'withdraw-history';
+            document.getElementById('withdrawForm').classList.add('hidden');
+            render();
+        }
+
+        function showWithdrawForm(method) {
+            const formContainer = document.getElementById('withdrawForm');
+            formContainer.className = 'bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30 slide-in';
+            
+            let formHTML = '';
+            
+            if (method === 'bank') {
+                formHTML = `
+                    <h3 class="text-xl font-bold mb-4 text-center">🏦 RÚT QUA NGÂN HÀNG</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Tên Ngân Hàng</label>
+                            <select id="bankName" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                                <option>Vietcombank</option>
+                                <option>VietinBank</option>
+                                <option>BIDV</option>
+                                <option>Techcombank</option>
+                                <option>MB Bank</option>
+                                <option>ACB</option>
+                                <option>TPBank</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Số Tài Khoản</label>
+                            <input type="text" id="bankAccount" placeholder="Nhập số tài khoản" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Tên Người Thụ Hưởng</label>
+                            <input type="text" id="bankOwner" placeholder="VD: NGUYEN VAN A" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Số Tiền (Min: 20,000đ)</label>
+                            <input type="number" id="bankAmount" placeholder="20000" min="20000" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                        </div>
+                        <button onclick="submitWithdraw('bank')" class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg">
+                            ✅ XÁC NHẬN RÚT TIỀN
+                        </button>
+                    </div>
+                `;
+            } else if (method === 'momo') {
+                formHTML = `
+                    <h3 class="text-xl font-bold mb-4 text-center">📱 RÚT QUA MOMO</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Số Điện Thoại</label>
+                            <input type="tel" id="momoPhone" placeholder="0123456789" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Tên Người Thụ Hưởng</label>
+                            <input type="text" id="momoOwner" placeholder="NGUYEN VAN A" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Số Tiền (Min: 20,000đ)</label>
+                            <input type="number" id="momoAmount" placeholder="20000" min="20000" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                        </div>
+                        <button onclick="submitWithdraw('momo')" class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg">
+                            ✅ XÁC NHẬN RÚT TIỀN
+                        </button>
+                    </div>
+                `;
+            } else if (method === 'card') {
+                formHTML = `
+                    <h3 class="text-xl font-bold mb-4 text-center">🎫 RÚT THẺ CÀO VIETTEL</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold mb-2">Mệnh Giá</label>
+                            <select id="cardAmount" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white">
+                                <option value="10000">10,000đ</option>
+                                <option value="20000">20,000đ</option>
+                                <option value="50000">50,000đ</option>
+                                <option value="100000">100,000đ</option>
+                            </select>
+                        </div>
+                        <div class="bg-yellow-900/30 rounded-lg p-3 text-sm text-yellow-200">
+                            <p>📝 <strong>Lưu ý:</strong></p>
+                            <ul class="mt-2 space-y-1 text-xs">
+                                <li>• Mã thẻ sẽ được gửi vào Lịch Sử Rút Tiền</li>
+                                <li>• Thời gian xử lý: 1-24 giờ</li>
+                                <li>• Kiểm tra kỹ trước khi nạp</li>
+                            </ul>
+                        </div>
+                        <button onclick="submitWithdraw('card')" class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg">
+                            ✅ XÁC NHẬN RÚT THẺ
+                        </button>
+                    </div>
+                `;
+            }
+            
+            formHTML += `
+                <button onclick="document.getElementById('withdrawForm').classList.add('hidden')" class="w-full mt-4 py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-bold">
+                    ❌ HỦY
+                </button>
+            `;
+            
+            formContainer.innerHTML = formHTML;
+        }
+
+        // ==================== ADMIN FUNCTIONS ====================
+        async function approveWithdraw(requestId) {
+            if (confirm('Xác nhận duyệt yêu cầu này?')) {
+                await DB.updateWithdrawStatus(requestId, 'approved');
+                addLog('✅ Đã duyệt yêu cầu rút tiền!', 'success');
+                render();
+            }
+        }
+
+        async function rejectWithdraw(requestId) {
+            if (confirm('Xác nhận từ chối yêu cầu này?')) {
+                await DB.updateWithdrawStatus(requestId, 'rejected');
+                addLog('❌ Đã từ chối yêu cầu rút tiền!', 'error');
+                render();
+            }
+        }
+
+        async function deleteWithdraw(requestId) {
+            if (confirm('Xóa yêu cầu này khỏi danh sách?')) {
+                await DB.deleteWithdrawRequest(requestId);
+                addLog('🗑️ Đã xóa yêu cầu!', 'info');
+                render();
+            }
+        }
+
+        async function addAdminUser() {
+            const username = prompt('Nhập username để thêm vào Admin:');
+            if (username) {
+                const result = await DB.addAdmin(username.trim());
+                alert(result.message);
+                if (result.success) {
+                    render();
+                }
+            }
+        }
+
+        async function removeAdminUser(username) {
+            if (confirm(`Gỡ quyền Admin của ${username}?`)) {
+                const result = await DB.removeAdmin(username);
+                alert(result.message);
+                if (result.success) {
+                    render();
+                }
+            }
+        }
+
+        async function showModifyGoldForm() {
+            const allUsers = await DB.getAllUsers();
+            const usernames = Object.keys(allUsers);
+            
+            if (usernames.length === 0) {
+                alert('Không có user nào trong hệ thống!');
+                return;
+            }
+
+            let userList = 'Danh sách users:\n\n';
+            usernames.forEach((name, index) => {
+                const gold = allUsers[name].playerData.gold;
+                userList += `${index + 1}. ${name} - Vàng: ${gold.toLocaleString()}đ\n`;
+            });
+
+            const username = prompt(userList + '\nNhập username cần cộng/trừ tiền:');
+            if (!username) return;
+
+            const trimmedUsername = username.trim();
+            const exists = await DB.userExists(trimmedUsername);
+
+            if (!exists) {
+                alert(`❌ User "${trimmedUsername}" không tồn tại!\n\nCác user có trong hệ thống:\n${usernames.join(', ')}`);
+                return;
+            }
+
+            const currentGold = allUsers[trimmedUsername].playerData.gold;
+            const amountStr = prompt(`User: ${trimmedUsername}\nSố dư hiện tại: ${currentGold.toLocaleString()}đ\n\nNhập số tiền:\n• Số DƯƠNG để CỘNG tiền (VD: 1000)\n• Số ÂM để TRỪ tiền (VD: -500)`);
+            
+            if (!amountStr) return;
+
+            const amount = parseInt(amountStr);
+            if (isNaN(amount) || amount === 0) {
+                alert('❌ Số tiền không hợp lệ!');
+                return;
+            }
+
+            const result = await DB.modifyUserGold(trimmedUsername, amount);
+            
+            if (result.success) {
+                const action = amount > 0 ? 'CỘNG' : 'TRỪ';
+                alert(`✅ Đã ${action} ${Math.abs(amount).toLocaleString()}đ cho ${trimmedUsername}!\n\nSố dư mới: ${result.gold.toLocaleString()}đ`);
+                
+                if (amount > 0) {
+                    await DB.addNotification(`💰 Admin đã cộng cho bạn ${amount.toLocaleString()}đ!`, 'success');
+                } else {
+                    await DB.addNotification(`⚠️ Admin đã trừ ${Math.abs(amount).toLocaleString()}đ từ tài khoản của bạn!`, 'warning');
+                }
+                
+                render();
+            } else {
+                alert('❌ ' + result.message);
+            }
+        }
+
+        async function showSendNotificationForm() {
+            const message = prompt('Nhập thông báo gửi toàn server:\n\n(Thông báo sẽ hiển thị cho tất cả người chơi)');
+            if (!message || message.trim() === '') {
+                return;
+            }
+
+            const typeStr = prompt('Chọn loại thông báo:\n\n1 = Thông tin (xanh)\n2 = Thành công (xanh lá)\n3 = Cảnh báo (vàng)\n4 = Lỗi (đỏ)\n\nNhập số (1-4):');
+            
+            const typeMap = {
+                '1': 'info',
+                '2': 'success',
+                '3': 'warning',
+                '4': 'error'
+            };
+
+            const type = typeMap[typeStr] || 'info';
+
+            await DB.addNotification(message.trim(), type);
+            
+            alert('✅ Đã gửi thông báo toàn server!');
+            
+            checkNotifications();
+            render();
+        }
+
+        // ==================== SUPPORT FUNCTIONS ====================
+        function toggleSupport() {
+            gameState.showSupport = !gameState.showSupport;
+            render();
+        }
+
+        // ==================== RENDER FUNCTIONS ====================
+        function renderAuthScreen() {
+            if (gameState.authView === 'login') {
+                return `
+                    <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4 md:p-8 flex items-center justify-center">
+                        <div class="max-w-md w-full bg-gradient-to-br from-purple-800/50 to-blue-800/50 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-purple-500/30 slide-in">
+                            <div class="text-center mb-8">
+                                <div class="text-6xl mb-4 animate-bounce">⚔️</div>
+                                <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                    GAME RPG ONLINE
+                                </h1>
+                                <p class="text-purple-300">🔥 Firebase Cloud Version</p>
+                            </div>
+
                             <div class="space-y-4">
                                 <div>
-                                    <label class="text-xs font-bold text-slate-400 ml-1">TÊN NHÂN VẬT</label>
-                                    <input id="login-name" type="text" placeholder="Nhập tên..." 
-                                           class="w-full bg-slate-900/50 border border-slate-700 p-3 rounded-xl text-white outline-none focus:border-yellow-500 transition">
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">👤 Username</label>
+                                    <input
+                                        type="text"
+                                        id="loginUsername"
+                                        placeholder="Nhập username"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                        onkeypress="if(event.key==='Enter') handleLogin()"
+                                    />
                                 </div>
-                                <button onclick="handleLogin()" 
-                                        class="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 py-4 rounded-xl font-black text-white shadow-lg hover:scale-105 active:scale-95 transition">
-                                    BẮT ĐẦU PHIÊU LƯU
+
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">🔒 Password</label>
+                                    <input
+                                        type="password"
+                                        id="loginPassword"
+                                        placeholder="Nhập password"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                        onkeypress="if(event.key==='Enter') handleLogin()"
+                                    />
+                                </div>
+
+                                ${gameState.authError ? `<p class="text-red-400 text-sm text-center">⚠️ ${gameState.authError}</p>` : ''}
+
+                                <button
+                                    onclick="handleLogin()"
+                                    class="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+                                >
+                                    🎮 ĐĂNG NHẬP
                                 </button>
+
+                                <div class="text-center">
+                                    <button
+                                        onclick="gameState.authView='register'; gameState.authError=''; render();"
+                                        class="text-purple-300 hover:text-purple-100 text-sm underline"
+                                    >
+                                        Chưa có tài khoản? Đăng ký ngay
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 `;
-                return;
-            }
-
-            // GIAO DIỆN CHÍNH (GIỮ NGUYÊN CODE RENDER CỦA BẠN)
-            root.innerHTML = `
-                <div class="max-w-md mx-auto min-h-screen flex flex-col pb-20">
-                    <div class="p-4 glass sticky top-0 z-10 flex justify-between items-center">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <span class="font-black text-xl text-white">${gameState.player.name}</span>
-                                ${gameState.player.name === MASTER_ADMIN ? '<span class="bg-red-500 text-[10px] px-1 rounded font-bold">ADMIN</span>' : ''}
+            } else {
+                return `
+                    <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4 md:p-8 flex items-center justify-center">
+                        <div class="max-w-md w-full bg-gradient-to-br from-purple-800/50 to-blue-800/50 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-purple-500/30 slide-in">
+                            <div class="text-center mb-8">
+                                <div class="text-6xl mb-4">📝</div>
+                                <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                    ĐĂNG KÝ TÀI KHOẢN
+                                </h1>
+                                <p class="text-purple-300">Tạo tài khoản mới để bắt đầu</p>
                             </div>
-                            <div class="text-yellow-400 font-bold">💰 ${gameState.player.gold.toLocaleString()}</div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">👤 Username</label>
+                                    <input
+                                        type="text"
+                                        id="registerUsername"
+                                        placeholder="Tối thiểu 3 ký tự"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">🔒 Password</label>
+                                    <input
+                                        type="password"
+                                        id="registerPassword"
+                                        placeholder="Tối thiểu 5 ký tự"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                        onkeypress="if(event.key==='Enter') handleRegister()"
+                                    />
+                                </div>
+
+                                ${gameState.authError ? `<p class="text-red-400 text-sm text-center">⚠️ ${gameState.authError}</p>` : ''}
+
+                                <button
+                                    onclick="handleRegister()"
+                                    class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+                                >
+                                    ✅ TẠO TÀI KHOẢN
+                                </button>
+
+                                <div class="text-center">
+                                    <button
+                                        onclick="gameState.authView='login'; gameState.authError=''; render();"
+                                        class="text-purple-300 hover:text-purple-100 text-sm underline"
+                                    >
+                                        Đã có tài khoản? Đăng nhập
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <button onclick="location.reload()" class="bg-slate-700 p-2 rounded-lg text-xs">Thoát</button>
                     </div>
+                `;
+            }
+        }
 
-                    ${gameState.player.name === MASTER_ADMIN ? `
-                        <div class="m-4 p-4 bg-red-900/30 border border-red-500/50 rounded-xl">
-                            <p class="text-red-400 text-[10px] font-black mb-2 uppercase">Bảng Điều Khiển Admin</p>
-                            <div class="flex gap-2">
-                                <input id="admin-target" placeholder="Tên User" class="bg-black/50 p-2 text-xs rounded border border-red-500/30 flex-1">
-                                <input id="admin-gold" type="number" placeholder="Vàng" class="bg-black/50 p-2 text-xs rounded border border-red-500/30 w-20">
-                                <button onclick="adminAddGold()" class="bg-red-600 px-3 py-2 rounded text-xs font-bold">CỘNG</button>
+        function renderNotificationBanner() {
+            if (!gameState.currentNotification) return '';
+
+            const notif = gameState.currentNotification;
+
+            return `
+                <div class="notification-banner slide-down">
+                    <div class="max-w-7xl mx-auto px-4 py-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 flex-1">
+                                <div class="text-3xl">📢</div>
+                                <div class="flex-1">
+                                    <div class="font-bold text-lg">THÔNG BÁO TỪ ADMIN</div>
+                                    <div class="text-sm">${notif.message}</div>
+                                </div>
                             </div>
+                            <button
+                                onclick="dismissCurrentNotification()"
+                                class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm whitespace-nowrap"
+                            >
+                                ✕ Đóng
+                            </button>
                         </div>
-                    ` : ''}
-
-                    <div class="p-4">
-                        <p class="text-center text-slate-500 italic text-xs">Đang kết nối tới máy chủ Google Realtime...</p>
-                        </div>
+                    </div>
                 </div>
             `;
         }
 
-        // ==========================================
-        // 7. KHỞI TẠO (INIT)
-        // ==========================================
-        function init() {
-            // Tự động kiểm tra xem có lưu cục bộ không
-            const localSave = localStorage.getItem('rpg_save_v1');
-            if (localSave) {
-                // Bạn có thể cho tự động đăng nhập ở đây nếu muốn
-            }
-            render();
+        function renderGameView() {
+            const stats = getTotalStats();
             
-            // Hệ thống tự động Reset Boss (Giữ nguyên code cũ)
+            return `
+                <div class="grid lg:grid-cols-2 gap-4 md:gap-6">
+                    <!-- Battle Arena -->
+                    <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30 shadow-xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                ⚔️ CHIẾN TRƯỜNG
+                            </h2>
+                            <button
+                                onclick="toggleAutoFight()"
+                                class="px-3 py-1 rounded-lg text-xs md:text-sm font-bold ${
+                                    gameState.autoFight 
+                                        ? 'bg-green-600 hover:bg-green-700' 
+                                        : 'bg-gray-600 hover:bg-gray-700'
+                                }"
+                            >
+                                ${gameState.autoFight ? '🔄 Auto ON' : '⏸️ Auto OFF'}
+                            </button>
+                        </div>
+                        
+                        ${!gameState.isInBattle ? `
+                            <div class="text-center space-y-4">
+                                <div class="text-6xl mb-4 animate-bounce">🏰</div>
+                                <p class="text-purple-300 mb-4">Ải ${gameState.player.currentStage} - Quái đã tiêu diệt: ${gameState.player.totalMonstersKilled}</p>
+                                <p class="text-yellow-300 text-sm">
+                                    ${gameState.player.totalMonstersKilled % 10 === 0 && gameState.player.totalMonstersKilled > 0 ? '👹 BOSS ẢI SẮP XUẤT HIỆN!' : `Còn ${10 - (gameState.player.totalMonstersKilled % 10)} quái nữa gặp Boss Ải`}
+                                </p>
+                                ${gameState.autoFight ? `
+                                    <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-3">
+                                        <p class="text-green-300 text-sm animate-pulse">⚡ Đang tự động spawn quái...</p>
+                                    </div>
+                                ` : `
+                                    <button 
+                                        onclick="startBattle(); render();"
+                                        class="w-full py-4 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all"
+                                    >
+                                        ⚔️ BẮT ĐẦU CHIẾN ĐẤU
+                                    </button>
+                                `}
+                            </div>
+                        ` : `
+                            <div class="space-y-4">
+                                <div 
+                                    onclick="playerAttack(event)"
+                                    class="bg-red-900/30 rounded-xl p-4 md:p-6 border-2 border-red-500/50 cursor-pointer hover:bg-red-800/40 hover:border-red-400 hover:scale-105 transition-all duration-200 relative overflow-hidden active:scale-95"
+                                >
+                                    <div class="text-center">
+                                        <div class="text-5xl md:text-7xl mb-3 animate-bounce">${gameState.monster.icon}</div>
+                                        <h3 class="font-bold text-xl md:text-2xl text-red-300 mb-2">${gameState.monster.name}</h3>
+                                        <div class="bg-black/50 rounded-lg p-3">
+                                            <div class="flex items-center justify-center gap-2 mb-2">
+                                                <span>❤️</span>
+                                                <span class="font-bold text-lg">${gameState.monster.hp}/${gameState.monster.maxHp}</span>
+                                            </div>
+                                            <div class="w-full bg-black/50 rounded-full h-4">
+                                                <div class="bg-gradient-to-r from-red-600 to-pink-500 h-full transition-all" style="width: ${(gameState.monster.hp / gameState.monster.maxHp) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 text-yellow-300 text-sm animate-pulse">👆 CLICK ĐỂ TẤN CÔNG!</div>
+                                    </div>
+                                </div>
+
+                                <div class="text-center">
+                                    <span class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent">⚡ VS ⚡</span>
+                                </div>
+
+                                <div class="bg-blue-900/30 rounded-xl p-4 border-2 border-blue-500/50">
+                                    <div class="text-center">
+                                        <div class="text-5xl mb-2">🛡️</div>
+                                        <h3 class="font-bold text-lg text-blue-300">${gameState.player.name}</h3>
+                                        <div class="mt-2">
+                                            <div class="flex items-center justify-center gap-2 mb-1">
+                                                <span>❤️</span>
+                                                <span class="font-bold">${gameState.player.hp}/${stats.totalHp}</span>
+                                            </div>
+                                            <div class="w-full bg-black/50 rounded-full h-3">
+                                                <div class="bg-gradient-to-r from-green-600 to-emerald-500 h-full transition-all" style="width: ${(gameState.player.hp / stats.totalHp) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Battle Log & Equipment -->
+                    <div class="space-y-4">
+                        <div class="bg-black/50 rounded-2xl p-4 border-2 border-purple-500/30">
+                            <h3 class="text-lg font-bold mb-4">✨ Nhật Ký</h3>
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                                ${gameState.battleLog.length === 0 ? 
+                                    '<p class="text-purple-300 text-center py-4">Chưa có trận chiến...</p>' :
+                                    gameState.battleLog.map(log => `
+                                        <div class="p-2 rounded-lg text-sm ${
+                                            log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                                            log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                                            'bg-blue-900/30 text-blue-300'
+                                        }">
+                                            ${log.message}
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 border-2 border-purple-500/30">
+                            <h3 class="text-lg font-bold mb-4">👑 Trang Bị</h3>
+                            <div class="space-y-3">
+                                <div class="bg-black/30 p-3 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-purple-300">⚔️ Vũ Khí:</span>
+                                        <span class="font-bold">${gameState.player.weapon ? `${gameState.player.weapon.icon} ${gameState.player.weapon.name}` : 'Chưa có'}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-black/30 p-3 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-purple-300">🛡️ Giáp:</span>
+                                        <span class="font-bold">${gameState.player.armor ? `${gameState.player.armor.icon} ${gameState.player.armor.name}` : 'Chưa có'}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-black/30 p-3 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-purple-300">🐾 Pet:</span>
+                                        <span class="font-bold">${gameState.player.pet ? `${gameState.player.pet.icon} ${gameState.player.pet.name}` : 'Chưa có'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderUpgradeView() {
+            const upgradeItems = [
+                { stat: 'atk', label: 'Sức Mạnh', icon: '⚔️', current: gameState.player.atk, bonus: '+5 ATK', color: 'from-orange-500 to-red-600', cost: 100 + gameState.player.atk * 50 },
+                { stat: 'hp', label: 'Máu', icon: '❤️', current: gameState.player.maxHp, bonus: '+20 HP', color: 'from-red-500 to-pink-600', cost: 150 + gameState.player.maxHp * 2 },
+                { stat: 'crit', label: 'Chí Mạng', icon: '⚡', current: gameState.player.crit, bonus: '+2% CRIT', color: 'from-yellow-500 to-orange-600', cost: 200 + gameState.player.crit * 100 }
+            ];
+
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                        ⬆️ NÂNG CẤP NHÂN VẬT
+                    </h2>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        ${upgradeItems.map(item => `
+                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
+                                <div class="text-center mb-4">
+                                    <div class="text-4xl md:text-5xl mb-2">${item.icon}</div>
+                                    <h3 class="font-bold text-lg">${item.label}</h3>
+                                    <p class="text-purple-300 text-sm mt-1">Hiện tại: ${item.current}</p>
+                                </div>
+                                <button
+                                    onclick="upgradeStats('${item.stat}'); render();"
+                                    class="w-full py-3 bg-gradient-to-r ${item.color} hover:scale-105 rounded-xl font-bold shadow-lg transform transition-all"
+                                >
+                                    ${item.bonus}
+                                    <div class="text-sm mt-1">💰 ${item.cost.toLocaleString()}đ</div>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderShopView() {
+            return `
+                <div class="space-y-6 md:space-y-8">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                            ⚔️ SHOP VŨ KHÍ
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
+                            ${weaponShop.map(weapon => {
+                                const isEquipped = gameState.player.weapon?.name === weapon.name;
+                                const isOwned = gameState.player.ownedWeapons.some(w => w.name === weapon.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-orange-500/30'
+                                } hover:border-orange-400 transition-all hover:scale-105">
+                                    <div class="text-center">
+                                        <div class="text-3xl md:text-4xl mb-2">${weapon.icon}</div>
+                                        <h3 class="font-bold text-sm">${weapon.name}</h3>
+                                        <p class="text-orange-300 text-xs">+${weapon.atk} ATK</p>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Trang bị
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700"
+                                            >
+                                                💰 ${weapon.price}đ
+                                            </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                            🛡️ SHOP GIÁP
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+                            ${armorShop.map(armor => {
+                                const isEquipped = gameState.player.armor?.name === armor.name;
+                                const isOwned = gameState.player.ownedArmors.some(a => a.name === armor.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-blue-500/30'
+                                } hover:border-blue-400 transition-all hover:scale-105">
+                                    <div class="text-center">
+                                        <div class="text-3xl md:text-4xl mb-2">${armor.icon}</div>
+                                        <h3 class="font-bold text-sm">${armor.name}</h3>
+                                        <p class="text-blue-300 text-xs">+${armor.def} DEF</p>
+                                        <p class="text-red-300 text-xs">+${armor.hp} HP</p>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Trang bị
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                                            >
+                                                💰 ${armor.price}đ
+                                            </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                            🐾 SHOP PET
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+                            ${petShop.map(pet => {
+                                const isEquipped = gameState.player.pet?.name === pet.name;
+                                const isOwned = gameState.player.ownedPets.some(p => p.name === pet.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-green-500/30'
+                                } hover:border-green-400 transition-all hover:scale-105">
+                                    <div class="text-center">
+                                        <div class="text-3xl md:text-4xl mb-2">${pet.icon}</div>
+                                        <h3 class="font-bold text-sm">${pet.name}</h3>
+                                        <p class="text-green-300 text-xs">+${pet.atkBonus}% ATK</p>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Triệu hồi
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                                            >
+                                                💰 ${pet.price}đ
+                                            </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBossView() {
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
+                        👑 BOSS TỰ CHỌN
+                    </h2>
+                    <div class="grid md:grid-cols-2 gap-4 md:gap-6">
+                        <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-2xl p-4 md:p-6 border-2 border-red-500/30">
+                            <div class="text-center mb-4">
+                                <div class="text-5xl md:text-6xl mb-2">🔥</div>
+                                <h3 class="text-xl md:text-2xl font-bold text-red-300">BOSS NGÀY</h3>
+                                <p class="text-sm text-orange-300 mt-2">Phần thưởng x4 Vàng!</p>
+                            </div>
+                            <div class="bg-black/30 rounded-lg p-3 mb-4">
+                                <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.dailyBosses}/2</span></p>
+                            </div>
+                            <button
+                                onclick="startBattle('daily'); render();"
+                                ${gameState.player.dailyBosses <= 0 ? 'disabled' : ''}
+                                class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                                    gameState.player.dailyBosses > 0
+                                        ? 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 hover:scale-105'
+                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                }"
+                            >
+                                ${gameState.player.dailyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
+                            </button>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
+                            <div class="text-center mb-4">
+                                <div class="text-5xl md:text-6xl mb-2">⚡</div>
+                                <h3 class="text-xl md:text-2xl font-bold text-purple-300">BOSS TUẦN</h3>
+                                <p class="text-sm text-pink-300 mt-2">Phần thưởng x7 Vàng!</p>
+                            </div>
+                            <div class="bg-black/30 rounded-lg p-3 mb-4">
+                                <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.weeklyBosses}/3</span></p>
+                            </div>
+                            <button
+                                onclick="startBattle('weekly'); render();"
+                                ${gameState.player.weeklyBosses <= 0 ? 'disabled' : ''}
+                                class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                                    gameState.player.weeklyBosses > 0
+                                        ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:scale-105'
+                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                }"
+                            >
+                                ${gameState.player.weeklyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdsView() {
+            const adReward = calculateAdReward();
+            
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+                        📺 XEM QUẢNG CÁO NHẬN THƯỞNG
+                    </h2>
+                    
+                    <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
+                        <p class="text-center text-green-300 text-sm md:text-base">
+                            ✅ <strong>TÍCH HỢP THẬT:</strong> Adsterra script chỉ chạy khi click nút xem QC
+                        </p>
+                        <p class="text-center text-green-200 text-xs mt-2">
+                            Số QC đã xem: ${gameState.adsWatched}
+                        </p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút)</h3>
+                            <div class="grid md:grid-cols-3 gap-3 md:gap-4">
+                                ${[
+                                    { type: 'hp', label: '+100 HP', icon: '❤️', color: 'from-red-500 to-pink-600' },
+                                    { type: 'atk', label: '+75 ATK', icon: '⚔️', color: 'from-orange-500 to-red-600' },
+                                    { type: 'def', label: '+10 DEF', icon: '🛡️', color: 'from-blue-500 to-purple-600' }
+                                ].map(boost => {
+                                    const isActive = gameState.adBoosts[boost.type].active && Date.now() < gameState.adBoosts[boost.type].endTime;
+                                    const timeLeft = isActive ? Math.ceil((gameState.adBoosts[boost.type].endTime - Date.now()) / 1000 / 60) : 0;
+                                    
+                                    return `
+                                        <button
+                                            onclick="watchAd('${boost.type}');"
+                                            ${isActive ? 'disabled' : ''}
+                                            class="py-4 rounded-xl font-bold bg-gradient-to-r ${boost.color} hover:scale-105 transform transition-all ${
+                                                isActive ? 'opacity-50 cursor-not-allowed' : ''
+                                            }"
+                                        >
+                                            <div class="text-2xl mb-1">${boost.icon}</div>
+                                            <div>${boost.label}</div>
+                                            ${isActive ? `<div class="text-xs mt-1">⏳ Còn ${timeLeft} phút</div>` : '<div class="text-xs mt-1">📺 Xem QC</div>'}
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-4 md:p-6 border-2 border-yellow-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">💰 NHẬN VÀNG</h3>
+                            <div class="grid md:grid-cols-2 gap-3 md:gap-4">
+                                <button
+                                    onclick="watchAd('coin1');"
+                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
+                                >
+                                    <div class="text-2xl mb-1">💰</div>
+                                    <div>+~${adReward}đ</div>
+                                    <div class="text-xs mt-1">(1 QC)</div>
+                                </button>
+                                <button
+                                    onclick="watchAd('coin2');"
+                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
+                                >
+                                    <div class="text-2xl mb-1">💎</div>
+                                    <div>+~${adReward * 2}đ</div>
+                                    <div class="text-xs mt-1">(2 QC)</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderMarketView() {
+            const myListings = await DB.getMyListings(gameState.currentUsername);
+            const othersListings = await DB.getOthersListings(gameState.currentUsername);
+
+            if (gameState.marketView === 'sell') {
+                const sellableWeapons = gameState.player.ownedWeapons.filter(w => gameState.player.weapon?.name !== w.name);
+                const sellableArmors = gameState.player.ownedArmors.filter(a => gameState.player.armor?.name !== a.name);
+                const sellablePets = gameState.player.ownedPets.filter(p => gameState.player.pet?.name !== p.name);
+
+                return `
+                    <div class="max-w-4xl mx-auto">
+                        <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                            🏪 ĐĂNG BÁN ĐỒ
+                        </h2>
+
+                        <button
+                            onclick="gameState.marketView='browse'; render();"
+                            class="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+                        >
+                            ← Quay lại Chợ
+                        </button>
+
+                        ${gameState.selectedItemToSell ? `
+                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30 mb-6">
+                                <h3 class="text-xl font-bold mb-4 text-center">Xác nhận giá bán</h3>
+                                <div class="text-center mb-4">
+                                    <div class="text-5xl mb-2">${gameState.selectedItemToSell.item.icon}</div>
+                                    <div class="font-bold text-lg">${gameState.selectedItemToSell.item.name}</div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-bold mb-2">Nhập giá bán (đ)</label>
+                                        <input
+                                            type="number"
+                                            id="sellPriceInput"
+                                            value="${gameState.sellPrice}"
+                                            oninput="gameState.sellPrice = this.value; render();"
+                                            placeholder="VD: 500"
+                                            class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white"
+                                        />
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <button
+                                            onclick="listItemForSale()"
+                                            class="py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold"
+                                        >
+                                            ✅ Đăng Bán
+                                        </button>
+                                        <button
+                                            onclick="gameState.selectedItemToSell=null; gameState.sellPrice=''; render();"
+                                            class="py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-bold"
+                                        >
+                                            ❌ Hủy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div class="space-y-6">
+                            ${sellableWeapons.length > 0 ? `
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">⚔️ Vũ Khí Có Thể Bán</h3>
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
+                                        ${sellableWeapons.map(w => `
+                                            <button
+                                                onclick="selectItemToSell(${JSON.stringify(w).replace(/"/g, '&quot;')}, 'weapon')"
+                                                class="bg-orange-900/30 p-3 rounded-lg border-2 border-orange-500/30 hover:border-orange-400 hover:scale-105 transition-all"
+                                            >
+                                                <div class="text-3xl mb-1">${w.icon}</div>
+                                                <div class="text-xs font-bold">${w.name}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${sellableArmors.length > 0 ? `
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">🛡️ Giáp Có Thể Bán</h3>
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
+                                        ${sellableArmors.map(a => `
+                                            <button
+                                                onclick="selectItemToSell(${JSON.stringify(a).replace(/"/g, '&quot;')}, 'armor')"
+                                                class="bg-blue-900/30 p-3 rounded-lg border-2 border-blue-500/30 hover:border-blue-400 hover:scale-105 transition-all"
+                                            >
+                                                <div class="text-3xl mb-1">${a.icon}</div>
+                                                <div class="text-xs font-bold">${a.name}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${sellablePets.length > 0 ? `
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">🐾 Pet Có Thể Bán</h3>
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
+                                        ${sellablePets.map(p => `
+                                            <button
+                                                onclick="selectItemToSell(${JSON.stringify(p).replace(/"/g, '&quot;')}, 'pet')"
+                                                class="bg-green-900/30 p-3 rounded-lg border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                                            >
+                                                <div class="text-3xl mb-1">${p.icon}</div>
+                                                <div class="text-xs font-bold">${p.name}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${sellableWeapons.length === 0 && sellableArmors.length === 0 && sellablePets.length === 0 ? `
+                                <div class="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-8 text-center">
+                                    <p class="text-yellow-300">Không có đồ để bán!</p>
+                                    <p class="text-sm text-yellow-200 mt-2">Gỡ trang bị trước khi bán hoặc mua thêm đồ mới.</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                        🏪 CHỢ TRADE THÀNH VIÊN
+                    </h2>
+
+                    <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
+                        <p class="text-center text-green-300 font-bold">
+                            ✅ FIREBASE REALTIME - Mua bán tự do giữa các thành viên!
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">📦 Đồ Của Tôi Đang Bán</h3>
+                            <div class="space-y-2 mb-4">
+                                ${myListings.length === 0 ? 
+                                    '<p class="text-center text-purple-300 py-8">Bạn chưa đăng bán gì</p>' :
+                                    myListings.map(listing => `
+                                        <div class="bg-black/30 p-3 rounded-lg">
+                                            <div class="flex justify-between items-center">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="text-3xl">${listing.item.icon}</div>
+                                                    <div>
+                                                        <div class="font-bold">${listing.item.name}</div>
+                                                        <div class="text-xs text-yellow-400">💰 ${listing.price.toLocaleString()}đ</div>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onclick="removeListing(${listing.id})"
+                                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg text-sm"
+                                                >
+                                                    Gỡ
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                            
+                            <button 
+                                onclick="gameState.marketView='sell'; render();"
+                                class="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 rounded-xl font-bold"
+                            >
+                                ➕ ĐĂNG BÁN ĐỒ
+                            </button>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-pink-900/50 to-purple-900/50 rounded-xl p-4 md:p-6 border-2 border-pink-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">🛒 Đồ Đang Bán</h3>
+                            <div class="space-y-2 max-h-96 overflow-y-auto">
+                                ${othersListings.length === 0 ? 
+                                    '<p class="text-center text-pink-300 py-8">Chưa có đồ nào trên chợ</p>' :
+                                    othersListings.map(listing => `
+                                        <div class="bg-black/30 p-3 rounded-lg hover:bg-black/50 transition-all">
+                                            <div class="flex justify-between items-center">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="text-3xl">${listing.item.icon}</div>
+                                                    <div>
+                                                        <div class="font-bold">${listing.item.name}</div>
+                                                        <div class="text-xs text-purple-300">Người bán: ${listing.seller}</div>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onclick="buyFromMarket(${JSON.stringify(listing).replace(/"/g, '&quot;')})"
+                                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-bold"
+                                                >
+                                                    💰 ${listing.price.toLocaleString()}đ
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderWithdrawView() {
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                        💵 RÚT TIỀN
+                    </h2>
+                    
+                    <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
+                        <p class="text-center text-green-300 font-bold text-sm md:text-base">
+                            ✅ FIREBASE REALTIME - Gửi yêu cầu và chờ admin duyệt!
+                        </p>
+                        <p class="text-center text-green-200 text-xs mt-2">
+                            ⚠️ Trong production thật cần tích hợp Payment Gateway hợp pháp
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-3 md:gap-4 mb-6">
+                        ${[
+                            { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '20K' },
+                            { method: 'momo', label: 'MoMo', icon: '📱', min: '20K' },
+                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '10K' }
+                        ].map(item => `
+                            <button
+                                onclick="showWithdrawForm('${item.method}')"
+                                class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-4 md:p-6 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                            >
+                                <div class="text-4xl md:text-5xl mb-2">${item.icon}</div>
+                                <h3 class="font-bold">${item.label}</h3>
+                                <p class="text-sm text-green-300">Min: ${item.min}</p>
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div id="withdrawForm" class="hidden"></div>
+                </div>
+            `;
+        }
+
+        async function renderWithdrawHistoryView() {
+            const userRequests = await DB.getUserWithdrawRequests(gameState.currentUsername);
+            
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                        📜 LỊCH SỬ RÚT TIỀN
+                    </h2>
+                    
+                    <div class="space-y-4">
+                        ${userRequests.length === 0 ? `
+                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-8 border-2 border-purple-500/30 text-center">
+                                <div class="text-6xl mb-4">📭</div>
+                                <p class="text-purple-300">Chưa có lịch sử rút tiền</p>
+                            </div>
+                        ` : userRequests.map(req => `
+                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div>
+                                        <div class="font-bold text-lg">
+                                            ${req.method === 'bank' ? '🏦 Ngân Hàng' : req.method === 'momo' ? '📱 MoMo' : '🎫 Thẻ Cào'}
+                                        </div>
+                                        <div class="text-sm text-purple-300">${req.date}</div>
+                                    </div>
+                                    <div class="text-right">
+                                        <div class="font-bold text-yellow-400 text-xl">${req.amount.toLocaleString()}đ</div>
+                                        <div class="text-xs px-2 py-1 rounded-full ${
+                                            req.status === 'approved' ? 'bg-green-900/50 text-green-300' :
+                                            req.status === 'rejected' ? 'bg-red-900/50 text-red-300' :
+                                            'bg-yellow-900/50 text-yellow-300'
+                                        }">
+                                            ${req.status === 'approved' ? '✅ Đã duyệt' : req.status === 'rejected' ? '❌ Từ chối' : '⏳ Chờ xử lý'}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                ${req.method === 'bank' ? `
+                                    <div class="grid grid-cols-2 gap-2 text-sm">
+                                        <div class="bg-black/30 p-2 rounded">
+                                            <div class="text-purple-300">Ngân hàng:</div>
+                                            <div class="font-bold">${req.details.bankName}</div>
+                                        </div>
+                                        <div class="bg-black/30 p-2 rounded">
+                                            <div class="text-purple-300">STK:</div>
+                                            <div class="font-bold">${req.details.account}</div>
+                                        </div>
+                                        <div class="bg-black/30 p-2 rounded col-span-2">
+                                            <div class="text-purple-300">Chủ TK:</div>
+                                            <div class="font-bold">${req.details.owner}</div>
+                                        </div>
+                                    </div>
+                                ` : req.method === 'momo' ? `
+                                    <div class="grid grid-cols-2 gap-2 text-sm">
+                                        <div class="bg-black/30 p-2 rounded">
+                                            <div class="text-purple-300">SĐT:</div>
+                                            <div class="font-bold">${req.details.phone}</div>
+                                        </div>
+                                        <div class="bg-black/30 p-2 rounded">
+                                            <div class="text-purple-300">Tên:</div>
+                                            <div class="font-bold">${req.details.owner}</div>
+                                        </div>
+                                    </div>
+                                ` : `
+                                    <div class="bg-black/30 p-3 rounded">
+                                        ${req.cardCode && req.status === 'approved' ? `
+                                            <div class="text-sm text-purple-300 mb-1">Mã thẻ:</div>
+                                            <div class="font-mono font-bold text-lg text-green-400 mb-2">${req.cardCode}</div>
+                                            <div class="text-xs text-yellow-200">
+                                                ⚠️ Vui lòng sao chép mã và nạp trong 30 ngày
+                                            </div>
+                                        ` : `
+                                            <div class="text-yellow-300">⏳ Đang chờ admin duyệt...</div>
+                                        `}
+                                    </div>
+                                `}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function renderAdminView() {
+            const allUsers = await DB.getAllUsers();
+            const allRequests = await DB.getAllWithdrawRequests();
+            const allListings = await DB.getAllMarketListings();
+            const allAdmins = await DB.getAllAdmins();
+            const pendingRequests = allRequests.filter(r => r.status === 'pending');
+
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
+                        👑 ADMIN PANEL - FIREBASE REALTIME
+                    </h2>
+
+                    <!-- Stats Overview -->
+                    <div class="grid md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-gradient-to-br from-blue-900/50 to-cyan-900/50 rounded-xl p-4 border-2 border-blue-500/30">
+                            <div class="text-3xl mb-2">👥</div>
+                            <div class="text-sm text-blue-300">Tổng User</div>
+                            <div class="text-2xl font-bold">${Object.keys(allUsers).length}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-4 border-2 border-yellow-500/30">
+                            <div class="text-3xl mb-2">⏳</div>
+                            <div class="text-sm text-yellow-300">Yêu cầu chờ</div>
+                            <div class="text-2xl font-bold">${pendingRequests.length}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-4 border-2 border-green-500/30">
+                            <div class="text-3xl mb-2">🏪</div>
+                            <div class="text-sm text-green-300">Đồ trên chợ</div>
+                            <div class="text-2xl font-bold">${allListings.length}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-xl p-4 border-2 border-purple-500/30">
+                            <div class="text-3xl mb-2">📊</div>
+                            <div class="text-sm text-purple-300">Tổng Admin</div>
+                            <div class="text-2xl font-bold">${allAdmins.length}</div>
+                        </div>
+                    </div>
+
+                    <!-- Admin Tools -->
+                    <div class="grid md:grid-cols-2 gap-6 mb-6">
+                        <button
+                            onclick="showModifyGoldForm()"
+                            class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-6 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                        >
+                            <div class="text-5xl mb-2">💰</div>
+                            <h3 class="text-xl font-bold">CỘNG/TRỪ TIỀN</h3>
+                            <p class="text-sm text-green-300 mt-2">Quản lý vàng của user</p>
+                        </button>
+
+                        <button
+                            onclick="showSendNotificationForm()"
+                            class="bg-gradient-to-br from-blue-900/50 to-cyan-900/50 rounded-xl p-6 border-2 border-blue-500/30 hover:border-blue-400 hover:scale-105 transition-all"
+                        >
+                            <div class="text-5xl mb-2">📢</div>
+                            <h3 class="text-xl font-bold">THÔNG BÁO SERVER</h3>
+                            <p class="text-sm text-blue-300 mt-2">Gửi thông báo toàn hệ thống</p>
+                        </button>
+                    </div>
+
+                    <!-- Admin Management -->
+                    <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-xl p-6 border-2 border-red-500/30 mb-6">
+                        <h3 class="text-xl font-bold mb-4">👑 QUẢN LÝ ADMIN</h3>
+                        <div class="space-y-3">
+                            ${allAdmins.map(admin => `
+                                <div class="bg-black/30 p-4 rounded-lg flex justify-between items-center">
+                                    <div>
+                                        <div class="font-bold text-lg">
+                                            ${admin} 
+                                            ${DB.isMasterAdmin(admin) ? '<span class="text-yellow-400 text-sm">(Master Admin - Không thể gỡ)</span>' : ''}
+                                        </div>
+                                        <div class="text-sm text-purple-300">Quyền: Quản lý toàn hệ thống</div>
+                                    </div>
+                                    ${!DB.isMasterAdmin(admin) ? `
+                                        <button
+                                            onclick="removeAdminUser('${admin}')"
+                                            class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-sm"
+                                        >
+                                            Gỡ Admin
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                            
+                            <button
+                                onclick="addAdminUser()"
+                                class="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold"
+                            >
+                                ➕ THÊM ADMIN MỚI
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Withdraw Requests -->
+                    <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30">
+                        <h3 class="text-xl font-bold mb-4">💵 YÊU CẦU RÚT TIỀN</h3>
+                        <div class="space-y-3 max-h-96 overflow-y-auto">
+                            ${allRequests.length === 0 ? `
+                                <p class="text-center text-purple-300 py-8">Chưa có yêu cầu nào</p>
+                            ` : allRequests.map(req => `
+                                <div class="bg-black/30 p-4 rounded-lg border border-purple-500/30">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <div class="font-bold">
+                                                ${req.method === 'bank' ? '🏦' : req.method === 'momo' ? '📱' : '🎫'} 
+                                                ${req.username}
+                                            </div>
+                                            <div class="text-sm text-purple-300">${req.date}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="font-bold text-yellow-400 text-lg">${req.amount.toLocaleString()}đ</div>
+                                            <div class="text-xs px-2 py-1 rounded-full ${
+                                                req.status === 'approved' ? 'bg-green-900/50 text-green-300' :
+                                                req.status === 'rejected' ? 'bg-red-900/50 text-red-300' :
+                                                'bg-yellow-900/50 text-yellow-300'
+                                            }">
+                                                ${req.status === 'approved' ? '✅ Đã duyệt' : req.status === 'rejected' ? '❌ Từ chối' : '⏳ Chờ'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    ${req.method === 'bank' ? `
+                                        <div class="text-sm mb-3">
+                                            <div>• ${req.details.bankName}</div>
+                                            <div>• STK: ${req.details.account}</div>
+                                            <div>• Tên: ${req.details.owner}</div>
+                                        </div>
+                                    ` : req.method === 'momo' ? `
+                                        <div class="text-sm mb-3">
+                                            <div>• SĐT: ${req.details.phone}</div>
+                                            <div>• Tên: ${req.details.owner}</div>
+                                        </div>
+                                    ` : `
+                                        <div class="text-sm mb-3">
+                                            <div>• Mệnh giá: ${req.amount.toLocaleString()}đ</div>
+                                            ${req.cardCode ? `<div>• Mã: ${req.cardCode}</div>` : ''}
+                                        </div>
+                                    `}
+
+                                    ${req.status === 'pending' ? `
+                                        <div class="flex gap-2">
+                                            <button
+                                                onclick="approveWithdraw(${req.id})"
+                                                class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm"
+                                            >
+                                                ✅ Duyệt
+                                            </button>
+                                            <button
+                                                onclick="rejectWithdraw(${req.id})"
+                                                class="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-sm"
+                                            >
+                                                ❌ Từ chối
+                                            </button>
+                                            <button
+                                                onclick="deleteWithdraw(${req.id})"
+                                                class="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-bold text-sm"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    ` : `
+                                        <button
+                                            onclick="deleteWithdraw(${req.id})"
+                                            class="w-full py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-bold text-sm"
+                                        >
+                                            🗑️ Xóa
+                                        </button>
+                                    `}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== SUPPORT MODAL ====================
+        function renderSupportModal() {
+            if (!gameState.showSupport) return '';
+
+            return `
+                <div class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onclick="toggleSupport()">
+                    <div class="bg-gradient-to-br from-purple-900/95 to-blue-900/95 rounded-2xl p-6 md:p-8 max-w-md w-full border-2 border-purple-500/50 shadow-2xl slide-in" onclick="event.stopPropagation()">
+                        <div class="text-center">
+                            <div class="text-6xl mb-4">💬</div>
+                            <h2 class="text-2xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                HỖ TRỢ NGƯỜI CHƠI
+                            </h2>
+                            
+                            <div class="bg-black/30 rounded-xl p-4 mb-6">
+                                <p class="text-purple-300 mb-4">
+                                    Gặp lỗi hoặc cần hỗ trợ?<br/>
+                                    Liên hệ ngay với chúng tôi qua Telegram:
+                                </p>
+                                <a 
+                                    href="https://t.me/NQ_CTV" 
+                                    target="_blank"
+                                    class="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 px-6 py-3 rounded-xl font-bold text-lg transform hover:scale-105 transition-all"
+                                >
+                                    <span class="text-2xl">📱</span>
+                                    @NQ_CTV
+                                </a>
+                            </div>
+
+                            <div class="text-sm text-purple-300 space-y-2">
+                                <p>📝 Hỗ trợ các vấn đề:</p>
+                                <ul class="text-left text-xs space-y-1 ml-6">
+                                    <li>• Lỗi game, bug kỹ thuật</li>
+                                    <li>• Vấn đề rút tiền</li>
+                                    <li>• Khiếu nại giao dịch</li>
+                                    <li>• Câu hỏi về tính năng</li>
+                                </ul>
+                            </div>
+
+                            <button
+                                onclick="toggleSupport()"
+                                class="mt-6 w-full py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-bold"
+                            >
+                                ❌ ĐÓNG
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== MAIN RENDER ====================
+        async function render() {
+            const root = document.getElementById('root');
+            
+            if (!gameState.isLoggedIn) {
+                root.innerHTML = renderAuthScreen();
+                return;
+            }
+
+            const stats = getTotalStats();
+            const isAdmin = await DB.isAdmin(gameState.currentUsername);
+
+            let viewContent = '';
+            if (gameState.currentView === 'game') {
+                viewContent = renderGameView();
+            } else if (gameState.currentView === 'upgrade') {
+                viewContent = renderUpgradeView();
+            } else if (gameState.currentView === 'shop') {
+                viewContent = renderShopView();
+            } else if (gameState.currentView === 'boss') {
+                viewContent = renderBossView();
+            } else if (gameState.currentView === 'ads') {
+                viewContent = renderAdsView();
+            } else if (gameState.currentView === 'market') {
+                viewContent = await renderMarketView();
+            } else if (gameState.currentView === 'withdraw') {
+                viewContent = renderWithdrawView();
+            } else if (gameState.currentView === 'withdraw-history') {
+                viewContent = await renderWithdrawHistoryView();
+            } else if (gameState.currentView === 'admin' && isAdmin) {
+                viewContent = await renderAdminView();
+            }
+
+            root.innerHTML = `
+                ${renderNotificationBanner()}
+                <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-purple-900/80 to-blue-900/80 backdrop-blur-lg border-b-2 border-purple-500/30 shadow-xl ${gameState.currentNotification ? 'mt-16' : ''}">
+                        <div class="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4">
+                            <div class="flex items-center justify-between flex-wrap gap-3 md:gap-4">
+                                <div>
+                                    <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                        👤 ${gameState.player.name} ${isAdmin ? '👑' : ''}
+                                    </h1>
+                                    <p class="text-xs md:text-sm text-purple-300">Level ${gameState.player.level} • Ải ${gameState.player.currentStage}</p>
+                                </div>
+                                
+                                <div class="flex gap-2 md:gap-4 flex-wrap items-center">
+                                    <div class="bg-black/30 px-3 md:px-4 py-2 rounded-lg border border-yellow-500/30">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-xl md:text-2xl">💰</span>
+                                            <span class="font-bold text-yellow-400 text-sm md:text-base">${gameState.player.gold.toLocaleString()}đ</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-black/30 px-3 md:px-4 py-2 rounded-lg border border-blue-500/30">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-sm md:text-base">⭐</span>
+                                            <span class="font-bold text-sm md:text-base">${gameState.player.exp}/${gameState.player.level * 100}</span>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onclick="toggleSupport()"
+                                        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold text-xs md:text-sm"
+                                    >
+                                        💬 Hỗ trợ
+                                    </button>
+
+                                    <button
+                                        onclick="handleLogout()"
+                                        class="px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-xs md:text-sm"
+                                    >
+                                        🚪 Đăng xuất
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Stats Bar -->
+                            <div class="mt-3 md:mt-4 grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <div class="bg-red-900/30 px-2 md:px-3 py-2 rounded-lg border border-red-500/30">
+                                    <div class="flex items-center justify-between text-xs md:text-sm">
+                                        <span>❤️</span>
+                                        <span class="font-bold">${gameState.player.hp}/${stats.totalHp}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-orange-900/30 px-2 md:px-3 py-2 rounded-lg border border-orange-500/30">
+                                    <div class="flex items-center justify-between text-xs md:text-sm">
+                                        <span>⚔️</span>
+                                        <span class="font-bold">ATK: ${stats.totalAtk}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-blue-900/30 px-2 md:px-3 py-2 rounded-lg border border-blue-500/30">
+                                    <div class="flex items-center justify-between text-xs md:text-sm">
+                                        <span>🛡️</span>
+                                        <span class="font-bold">DEF: ${stats.totalDef}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-yellow-900/30 px-2 md:px-3 py-2 rounded-lg border border-yellow-500/30">
+                                    <div class="flex items-center justify-between text-xs md:text-sm">
+                                        <span>⚡</span>
+                                        <span class="font-bold">CRIT: ${stats.totalCrit}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation -->
+                    <div class="bg-black/30 border-b border-purple-500/30 sticky top-0 z-10">
+                        <div class="max-w-7xl mx-auto px-2 md:px-4">
+                            <div class="flex gap-1 md:gap-2 overflow-x-auto py-2 scrollbar-hide">
+                                ${[
+                                    { id: 'game', label: '⚔️ Chiến Đấu', short: '⚔️', admin: false },
+                                    { id: 'upgrade', label: '⬆️ Nâng Cấp', short: '⬆️', admin: false },
+                                    { id: 'shop', label: '🛒 Cửa Hàng', short: '🛒', admin: false },
+                                    { id: 'boss', label: '👑 Boss', short: '👑', admin: false },
+                                    { id: 'ads', label: '📺 Quảng Cáo', short: '📺', admin: false },
+                                    { id: 'market', label: '🏪 Chợ', short: '🏪', admin: false },
+                                    { id: 'withdraw', label: '💵 Rút Tiền', short: '💵', admin: false },
+                                    { id: 'withdraw-history', label: '📜 Lịch Sử', short: '📜', admin: false },
+                                    { id: 'admin', label: '👑 Admin', short: '👑', admin: true },
+                                ].filter(nav => !nav.admin || isAdmin).map(nav => `
+                                    <button
+                                        onclick="gameState.currentView = '${nav.id}'; render();"
+                                        class="px-2 md:px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-all text-xs md:text-sm ${
+                                            gameState.currentView === nav.id
+                                                ? 'bg-gradient-to-r from-pink-500 to-purple-600 shadow-lg'
+                                                : 'bg-purple-800/30 hover:bg-purple-700/50'
+                                        }"
+                                    >
+                                        <span class="md:hidden">${nav.short}</span>
+                                        <span class="hidden md:inline">${nav.label}</span>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Content -->
+                    <div class="max-w-7xl mx-auto px-3 md:px-4 py-4 md:py-6">
+                        ${viewContent}
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="bg-black/50 border-t border-purple-500/30 mt-8 py-4">
+                        <p class="text-center text-purple-300 text-xs md:text-sm">
+                            ⚔️ GAME RPG ONLINE • FIREBASE VERSION • Made with ❤️
+                        </p>
+                        <p class="text-center text-purple-400 text-xs mt-1">
+                            Hỗ trợ: <a href="https://t.me/NQ_CTV" target="_blank" class="text-blue-400 hover:text-blue-300 underline">@NQ_CTV</a>
+                        </p>
+                    </div>
+
+                    ${renderSupportModal()}
+                </div>
+            `;
+        }
+
+        // ==================== INITIALIZATION ====================
+        function init() {
             setInterval(() => {
                 if (!gameState.player) return;
+                
                 const now = Date.now();
                 const dayMs = 24 * 60 * 60 * 1000;
+                const weekMs = 7 * dayMs;
+
+                let updated = false;
+
                 if (now - gameState.player.lastDailyReset > dayMs) {
                     gameState.player.dailyBosses = 2;
                     gameState.player.lastDailyReset = now;
+                    updated = true;
+                }
+
+                if (now - gameState.player.lastWeeklyReset > weekMs) {
+                    gameState.player.weeklyBosses = 3;
+                    gameState.player.lastWeeklyReset = now;
+                    updated = true;
+                }
+
+                if (updated) {
                     saveGame();
                     render();
                 }
             }, 60000);
+
+            // Kiểm tra thông báo mỗi 30 giây
+            setInterval(() => {
+                if (gameState.isLoggedIn && !gameState.currentNotification) {
+                    checkNotifications();
+                }
+            }, 30000);
+
+            render();
         }
 
-        init();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
