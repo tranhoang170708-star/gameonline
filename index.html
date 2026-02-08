@@ -161,7 +161,7 @@
             messagingSenderId: "788942574263",
             appId: "1:788942574263:web:ef450c3d0cf72afd317332",
             measurementId: "G-7T72ZT3V8R",
-            databaseURL: "https://myrpggame-5adb9-default-rtdb.asia-southeast1.firebasedatabase.app/"
+            databaseURL: "https://myrpggame-5adb9-default-rtdb.firebaseio.com/"
         };
 
         // Initialize Firebase
@@ -898,7 +898,7 @@
             }
         }
 
-        function handleVictory(defeatedMonster) {
+        async function handleVictory(defeatedMonster) {
             const newGold = gameState.player.gold + defeatedMonster.goldReward;
             const newExp = gameState.player.exp + defeatedMonster.expReward;
             const expToLevel = gameState.player.level * 100;
@@ -934,7 +934,7 @@
                 gameState.player.totalMonstersKilled++;
             }
 
-            saveGame();
+            await saveGame();
 
             addLog(`🎉 Chiến thắng! +${defeatedMonster.goldReward}💰 +${defeatedMonster.expReward}⭐`, 'success');
             if (newLevel > gameState.player.level) {
@@ -949,15 +949,15 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 500);
+                }, 1500);
             }
         }
 
-        function handleDefeat() {
+        async function handleDefeat() {
             addLog('💀 Bạn đã thua! -50% vàng', 'error');
             gameState.player.gold = Math.floor(gameState.player.gold * 0.5);
             gameState.player.hp = gameState.player.maxHp;
-            saveGame();
+            await saveGame();
             gameState.isInBattle = false;
             gameState.monster = null;
             
@@ -966,7 +966,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 500);
+                }, 2000);
             }
         }
 
@@ -984,7 +984,7 @@
         }
 
         // ==================== SHOP FUNCTIONS ====================
-        function buyItem(item, type) {
+        async function buyItem(item, type) {
             if (gameState.player.gold < item.price) {
                 addLog('⚠️ Không đủ vàng!', 'error');
                 return;
@@ -1019,11 +1019,12 @@
                 gameState.player.pet = item;
             }
 
-            saveGame();
+            await saveGame();
             addLog(`✅ Đã mua và trang bị ${item.icon} ${item.name}!`, 'success');
+            render();
         }
 
-        function equipItem(item, type) {
+        async function equipItem(item, type) {
             if (type === 'weapon') {
                 if (gameState.player.weapon?.name === item.name) {
                     addLog('⚠️ Đang sử dụng vũ khí này rồi!', 'error');
@@ -1058,7 +1059,7 @@
                 addLog(`✅ Đã triệu hồi ${item.icon} ${item.name}!`, 'success');
             }
             
-            saveGame();
+            await saveGame();
             render();
         }
 
@@ -1139,7 +1140,7 @@
 
             await DB.removeMarketListing(listing.id);
 
-            saveGame();
+            await saveGame();
             addLog(`✅ Đã mua ${item.icon} ${item.name} từ ${listing.seller}!`, 'success');
             render();
         }
@@ -1164,7 +1165,7 @@
         }
 
         // ==================== UPGRADE FUNCTIONS ====================
-        function upgradeStats(stat) {
+        async function upgradeStats(stat) {
             const costs = {
                 atk: 100 + gameState.player.atk * 50,
                 hp: 150 + gameState.player.maxHp * 2,
@@ -1187,8 +1188,9 @@
                 gameState.player.crit += 2;
             }
 
-            saveGame();
+            await saveGame();
             addLog(`⬆️ Đã nâng cấp ${stat.toUpperCase()}!`, 'success');
+            render();
         }
 
         // ==================== AD FUNCTIONS ====================
@@ -1819,7 +1821,7 @@
                                     <p class="text-purple-300 text-sm mt-1">Hiện tại: ${item.current}</p>
                                 </div>
                                 <button
-                                    onclick="upgradeStats('${item.stat}'); render();"
+                                    onclick="upgradeStats('${item.stat}')"
                                     class="w-full py-3 bg-gradient-to-r ${item.color} hover:scale-105 rounded-xl font-bold shadow-lg transform transition-all"
                                 >
                                     ${item.bonus}
@@ -1840,7 +1842,7 @@
                             ⚔️ SHOP VŨ KHÍ
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
-                            ${weaponShop.map(weapon => {
+                            ${weaponShop.map((weapon, idx) => {
                                 const isEquipped = gameState.player.weapon?.name === weapon.name;
                                 const isOwned = gameState.player.ownedWeapons.some(w => w.name === weapon.name);
                                 
@@ -1858,14 +1860,14 @@
                                             </div>
                                         ` : isOwned ? `
                                             <button
-                                                onclick="equipItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon');"
+                                                onclick="equipItem(weaponShop[${idx}], 'weapon')"
                                                 class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
                                             >
                                                 🔄 Trang bị
                                             </button>
                                         ` : `
                                             <button
-                                                onclick="buyItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon'); render();"
+                                                onclick="buyItem(weaponShop[${idx}], 'weapon')"
                                                 class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700"
                                             >
                                                 💰 ${weapon.price}đ
@@ -1882,7 +1884,7 @@
                             🛡️ SHOP GIÁP
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${armorShop.map(armor => {
+                            ${armorShop.map((armor, idx) => {
                                 const isEquipped = gameState.player.armor?.name === armor.name;
                                 const isOwned = gameState.player.ownedArmors.some(a => a.name === armor.name);
                                 
@@ -1901,14 +1903,14 @@
                                             </div>
                                         ` : isOwned ? `
                                             <button
-                                                onclick="equipItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor');"
+                                                onclick="equipItem(armorShop[${idx}], 'armor')"
                                                 class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
                                             >
                                                 🔄 Trang bị
                                             </button>
                                         ` : `
                                             <button
-                                                onclick="buyItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor'); render();"
+                                                onclick="buyItem(armorShop[${idx}], 'armor')"
                                                 class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
                                             >
                                                 💰 ${armor.price}đ
@@ -1925,7 +1927,7 @@
                             🐾 SHOP PET
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${petShop.map(pet => {
+                            ${petShop.map((pet, idx) => {
                                 const isEquipped = gameState.player.pet?.name === pet.name;
                                 const isOwned = gameState.player.ownedPets.some(p => p.name === pet.name);
                                 
@@ -1943,14 +1945,14 @@
                                             </div>
                                         ` : isOwned ? `
                                             <button
-                                                onclick="equipItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet');"
+                                                onclick="equipItem(petShop[${idx}], 'pet')"
                                                 class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
                                             >
                                                 🔄 Triệu hồi
                                             </button>
                                         ` : `
                                             <button
-                                                onclick="buyItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet'); render();"
+                                                onclick="buyItem(petShop[${idx}], 'pet')"
                                                 class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
                                             >
                                                 💰 ${pet.price}đ
