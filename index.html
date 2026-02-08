@@ -941,7 +941,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 1500);
+                }, 300);
             }
         }
 
@@ -1673,7 +1673,7 @@
                                         : 'bg-gray-600 hover:bg-gray-700'
                                 }"
                             >
-                                ${gameState.autoFight ? '🔄 Auto ON' : '⏸️ Auto OFF'}
+                                ${gameState.autoFight ? '' : ''}
                             </button>
                         </div>
                         
