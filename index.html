@@ -560,4 +560,59 @@
             if(enemy.isBoss) return;
             
             enemy.isBoss = true;
-            document.querySelector('.
+            document.querySelector('.enemy').innerText = type === 'daily' ? "💀" : "👿";
+            
+            if(type === 'daily') {
+                enemy.name = "BOSS NGÀY";
+                enemy.maxHp = player.atk * 20; // Scale with player
+                enemy.hp = enemy.maxHp;
+                enemy.reward = 500;
+                enemy.damage = 10;
+            } else {
+                enemy.name = "BOSS TUẦN";
+                enemy.maxHp = player.atk * 100;
+                enemy.hp = enemy.maxHp;
+                enemy.reward = 5000;
+                enemy.damage = 50;
+            }
+            showNotify("BOSS XUẤT HIỆN!");
+            updateUI();
+        }
+
+        function returnToNormal() {
+            enemy.isBoss = false;
+            spawnEnemy();
+        }
+
+        // --- Withdraw Logic ---
+        function withdraw() {
+            let amount = document.getElementById('withdraw-amount').value;
+            if(amount < 10000) {
+                showNotify("❌ Tối thiểu rút 10,000 Coin");
+                return;
+            }
+            if(player.coin >= amount) {
+                player.coin -= amount;
+                showNotify(`✅ Yêu cầu rút ${amount} Coin đã gửi! (Giả lập)`);
+                updateUI();
+            } else {
+                showNotify("❌ Số dư không đủ!");
+            }
+        }
+
+        function showNotify(msg) {
+            const noti = document.getElementById('notification');
+            noti.innerText = msg;
+            noti.style.display = 'block';
+            setTimeout(() => {
+                noti.style.display = 'none';
+            }, 2000);
+        }
+
+        // Init
+        spawnEnemy();
+        updateUI();
+
+    </script>
+</body>
+</html>
