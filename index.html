@@ -2,546 +2,836 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hardcore RPG Clicker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chiến Binh Huyền Thoại - RPG Online</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
         :root {
-            --bg: #0f0f1a;
-            --panel: #1b1b2f;
-            --accent: #e43f5a;
-            --gold: #ffd700;
+            --primary: #ff9f1c; /* Cam vàng */
+            --bg: #1a1a2e; /* Xanh đen tối */
+            --panel: #16213e; /* Panel tối */
+            --accent: #e94560; /* Đỏ hồng */
             --text: #ffffff;
+            --success: #2ec4b6;
         }
+
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+        
         body {
-            font-family: 'Courier New', Courier, monospace; /* Font kiểu game retro */
+            font-family: 'Roboto', sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
-            user-select: none;
-            overflow-x: hidden;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* --- Header --- */
+        /* --- Login Screen --- */
+        #login-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        #login-screen input {
+            padding: 15px;
+            font-size: 18px;
+            width: 80%;
+            border-radius: 10px;
+            border: 2px solid var(--primary);
+            background: #0f3460;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        /* --- Main UI --- */
         .header {
             background: var(--panel);
             padding: 10px;
-            border-bottom: 2px solid #333;
-            position: sticky;
-            top: 0;
+            border-bottom: 2px solid var(--accent);
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            font-size: 14px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
             z-index: 100;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            font-size: 0.9rem;
         }
-        .stat { margin: 5px; font-weight: bold; }
-        .coin-box {
-            width: 100%;
-            text-align: center;
-            color: var(--gold);
-            font-size: 1.4rem;
-            margin-top: 5px;
-            text-shadow: 0 0 5px orange;
-        }
+        .header div { font-weight: bold; }
+        .currency { color: var(--primary); font-size: 16px; grid-column: span 2; text-align: center; margin-top: 5px; }
 
-        /* --- Battle --- */
-        .battle-zone {
-            height: 350px;
+        /* --- Battle Area --- */
+        .battle-area {
+            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: radial-gradient(circle, #2a2a40 0%, #0f0f1a 80%);
             position: relative;
+            background: radial-gradient(circle at center, #252540 0%, #1a1a2e 100%);
+            overflow: hidden;
         }
-        
+
         .enemy-container {
             position: relative;
             cursor: pointer;
             transition: transform 0.1s;
         }
         .enemy-container:active { transform: scale(0.95); }
+        .enemy-img { font-size: 100px; filter: drop-shadow(0 0 10px rgba(255,255,255,0.3)); }
         
-        .enemy-sprite { font-size: 100px; }
-        
-        .hp-bar-frame {
-            width: 200px;
-            height: 20px;
-            background: #333;
-            border: 2px solid #fff;
-            margin-top: 10px;
-            position: relative;
+        .hp-bar-box {
+            width: 70%; height: 20px; background: #333;
+            border-radius: 10px; margin-top: 15px; border: 2px solid #fff;
+            position: relative; overflow: hidden;
         }
-        .hp-bar-fill {
-            height: 100%;
-            background: #ff3333;
-            width: 100%;
-            transition: width 0.2s;
+        .hp-fill {
+            height: 100%; background: var(--accent); width: 100%;
+            transition: width 0.2s ease-out;
         }
-        .boss-badge {
-            background: red;
-            color: white;
-            padding: 2px 5px;
-            font-size: 0.7rem;
-            position: absolute;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: none;
+        .stage-info {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 20px; font-size: 12px;
         }
 
-        /* Hiệu ứng rung màn hình khi bị Boss đánh */
-        .shake { animation: shake 0.5s; }
-        @keyframes shake {
-            0% { transform: translate(1px, 1px) rotate(0deg); }
-            10% { transform: translate(-1px, -2px) rotate(-1deg); }
-            20% { transform: translate(-3px, 0px) rotate(1deg); }
-            30% { transform: translate(3px, 2px) rotate(0deg); }
-            100% { transform: translate(0, 0); }
+        /* --- Damage Numbers --- */
+        .dmg-popup {
+            position: absolute; font-weight: bold; font-size: 24px;
+            color: white; animation: floatUp 0.8s forwards; pointer-events: none;
+            text-shadow: 2px 2px 0 #000;
         }
+        .crit { color: #ffff00; font-size: 32px; text-shadow: 0 0 10px red; }
+        @keyframes floatUp { to { transform: translateY(-80px); opacity: 0; } }
 
-        /* Floating Text */
-        .float-text {
-            position: absolute;
-            font-weight: bold;
-            pointer-events: none;
-            animation: floatUp 0.8s forwards;
-        }
-        @keyframes floatUp {
-            from { transform: translateY(0); opacity: 1; }
-            to { transform: translateY(-50px); opacity: 0; }
-        }
-
-        /* --- Tabs & Shop --- */
-        .nav { display: flex; background: #222; }
-        .nav-btn {
-            flex: 1;
-            padding: 15px;
-            background: none;
-            border: none;
-            color: #888;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-        }
-        .nav-btn.active { color: white; border-bottom: 3px solid var(--accent); background: #333; }
-        
-        .tab-content { display: none; padding: 15px; max-width: 600px; margin: 0 auto; padding-bottom: 60px;}
-        .tab-content.active { display: block; }
-
-        .shop-item {
+        /* --- Footer Navigation --- */
+        .footer-nav {
             background: var(--panel);
-            margin-bottom: 10px;
-            padding: 10px;
-            border: 1px solid #444;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            overflow-x: auto;
+            border-top: 1px solid #333;
+            padding-bottom: 5px;
         }
-        .buy-btn {
-            background: var(--accent);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            cursor: pointer;
+        .nav-btn {
+            flex: 1; min-width: 70px;
+            padding: 10px 5px;
+            background: none; border: none;
+            color: #888; font-size: 12px;
+            display: flex; flex-direction: column; align-items: center;
         }
-        .buy-btn:disabled { background: #555; cursor: not-allowed; }
-        .owned { color: #0f0; font-weight: bold; }
+        .nav-btn i { font-size: 20px; margin-bottom: 5px; }
+        .nav-btn.active { color: var(--primary); background: rgba(255,255,255,0.05); }
 
-        .withdraw-note { color: #ff5555; font-size: 0.8rem; margin-top: 5px; font-style: italic;}
-
-        /* Notification */
-        #notify {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            border: 1px solid var(--accent);
+        /* --- Panels (Tabs) --- */
+        .panel-content {
+            position: absolute;
+            top: 75px; bottom: 60px; left: 0; width: 100%;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(5px);
+            z-index: 50;
             display: none;
-            z-index: 999;
+            overflow-y: auto;
+            padding: 15px;
         }
+        .panel-content.active { display: block; animation: slideIn 0.3s; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        h2 { color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 5px; margin-top: 0; }
+        
+        /* --- Items & Buttons --- */
+        .item-row {
+            background: #233050; margin-bottom: 10px; padding: 10px;
+            border-radius: 8px; display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid #30475e;
+        }
+        .btn {
+            background: var(--accent); color: white; border: none;
+            padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer;
+        }
+        .btn-green { background: var(--success); }
+        .btn-blue { background: #007bff; }
+        .btn:disabled { background: #555; opacity: 0.7; }
+        
+        .ad-timer { font-size: 12px; color: #aaa; margin-top: 5px; }
+        
+        /* --- Withdraw & History --- */
+        .history-item { font-size: 12px; border-bottom: 1px dashed #555; padding: 5px 0; }
+        input, select { width: 100%; padding: 10px; background: #0f3460; border: 1px solid #444; color: white; margin: 5px 0; border-radius: 5px; }
+
     </style>
 </head>
 <body>
 
-    <div id="notify">Thông báo</div>
+    <div id="login-screen">
+        <h1 style="color: var(--primary); text-shadow: 0 0 10px orange;">GAME ONLINE</h1>
+        <p>Nhập tên nhân vật (Tối thiểu 5 ký tự)</p>
+        <input type="text" id="player-name-input" placeholder="Ví dụ: Player123">
+        <button class="btn btn-green" style="width: 80%; padding: 15px;" onclick="startGame()">BẮT ĐẦU PHIÊU LƯU</button>
+    </div>
 
     <div class="header">
-        <div class="stat">❤️ HP: <span id="ui-hp">100</span>/<span id="ui-maxhp">100</span></div>
-        <div class="stat">⚔️ Dame: <span id="ui-atk">1</span></div>
-        <div class="stat">🛡️ Giáp: <span id="ui-def">0</span></div>
-        <div class="coin-box">💰 <span id="ui-coin">0</span> Coin</div>
+        <div>👤 <span id="ui-name">Player</span></div>
+        <div style="text-align: right;">❤️ <span id="ui-hp">100</span>/<span id="ui-maxhp">100</span></div>
+        <div>⚔️ <span id="ui-atk">2</span> | 🎯 <span id="ui-crit">5</span>%</div>
+        <div style="text-align: right;">🛡️ <span id="ui-def">0</span></div>
+        <div class="currency">💰 <span id="ui-coin">0</span> Đ</div>
     </div>
 
-    <div class="battle-zone" id="battle-screen">
+    <div id="buff-bar" style="background: #333; padding: 5px; font-size: 11px; text-align: center; color: #0f0; display:none;">
+        🔥 Đang có Buff Quảng Cáo!
+    </div>
+
+    <div class="battle-area" id="battle-area">
+        <div class="stage-info">Ải: <span id="ui-stage">1</span> | Quái: <span id="ui-mob-count">1</span>/10</div>
+        
         <div class="enemy-container" onclick="playerAttack(event)">
-            <div class="boss-badge" id="boss-badge">BOSS ZONE</div>
-            <div class="enemy-sprite" id="enemy-sprite">👾</div>
+            <div class="enemy-img" id="enemy-sprite">👾</div>
         </div>
-        <h3 id="enemy-name">Quái Level 1</h3>
-        <div class="hp-bar-frame">
-            <div class="hp-bar-fill" id="enemy-hp-bar"></div>
+
+        <h3 id="enemy-name" style="margin-bottom: 5px;">Quái Thường</h3>
+        <div class="hp-bar-box">
+            <div class="hp-fill" id="enemy-hp-bar"></div>
         </div>
-        <p>Enemy HP: <span id="enemy-hp">10</span></p>
+        <div style="margin-top: 5px;"><span id="enemy-hp">100</span> HP</div>
     </div>
 
-    <div class="nav">
-        <button class="nav-btn active" onclick="switchTab('shop-sword')">⚔️ Kiếm</button>
-        <button class="nav-btn" onclick="switchTab('shop-pet')">🐶 Pet</button>
-        <button class="nav-btn" onclick="switchTab('boss')">💀 Boss</button>
-        <button class="nav-btn" onclick="switchTab('withdraw')">🏦 Rút Tiền</button>
-    </div>
-
-    <div id="shop-sword" class="tab-content active">
-        <h3>Cửa Hàng Vũ Khí</h3>
-        <div id="sword-list"></div>
-    </div>
-
-    <div id="shop-pet" class="tab-content">
-        <h3>Cửa Hàng Thú Cưng (Auto Dame)</h3>
-        <div id="pet-list"></div>
-        <p style="color:#aaa; font-size:0.8rem">*Pet sẽ tự động đánh mỗi giây.</p>
-    </div>
-
-    <div id="boss" class="tab-content">
-        <h3>Triệu hồi Boss</h3>
-        <p style="color:red">Cảnh báo: Boss sẽ tự động tấn công bạn. Nếu hết máu, bạn thua cuộc!</p>
-        
-        <div class="shop-item">
+    <div id="tab-upgrade" class="panel-content">
+        <h2>⬆️ Nâng Cấp Nhân Vật</h2>
+        <div class="item-row">
             <div>
-                <b>💀 Boss Khô Lâu (Dễ)</b><br>
-                <small>Thưởng: 5.000 Coin</small>
+                <b>Luyện Kiếm (ATK)</b><br><small>Tăng sức tấn công</small>
             </div>
-            <button class="buy-btn" onclick="summonBoss(1)">Khiêu chiến</button>
+            <button class="btn" onclick="upgradeStat('atk')"><span id="cost-atk">100</span>Đ</button>
         </div>
-
-        <div class="shop-item">
+        <div class="item-row">
             <div>
-                <b>👹 Boss Quỷ Vương (Khó)</b><br>
-                <small>Thưởng: 50.000 Coin</small>
+                <b>Rèn Thể Lực (HP)</b><br><small>Tăng máu tối đa</small>
             </div>
-            <button class="buy-btn" onclick="summonBoss(2)">Khiêu chiến</button>
+            <button class="btn" onclick="upgradeStat('hp')"><span id="cost-hp">100</span>Đ</button>
         </div>
-        
-        <button class="buy-btn" style="width:100%; background:#444; margin-top:20px" onclick="fleeBoss()">🏳️ Đầu hàng / Về Farm</button>
+        <div class="item-row">
+            <div>
+                <b>Tập Trung (Crit)</b><br><small>Tăng tỉ lệ chí mạng</small>
+            </div>
+            <button class="btn" onclick="upgradeStat('crit')"><span id="cost-crit">200</span>Đ</button>
+        </div>
     </div>
 
-    <div id="withdraw" class="tab-content">
-        <h3>Rút Coin về Ví</h3>
-        <p>Tỷ giá: <b>1 Coin = 1 VNĐ</b></p>
-        <p>Số dư hiện tại: <span id="w-coin" style="color:var(--gold)">0</span> VNĐ</p>
+    <div id="tab-shop" class="panel-content">
+        <h2>⚔️ Shop Vũ Khí</h2>
+        <div id="shop-weapon-list"></div>
         
-        <label>Nhập số Coin muốn rút (Min 20.000):</label>
-        <input type="number" id="w-amount" style="width:100%; padding:10px; margin:10px 0; background:#333; color:white; border:1px solid #555" placeholder="Nhập số lượng...">
+        <h2>🛡️ Shop Giáp</h2>
+        <div id="shop-armor-list"></div>
+
+        <h2>🐶 Shop Pet</h2>
+        <div id="shop-pet-list"></div>
+    </div>
+
+    <div id="tab-boss" class="panel-content">
+        <h2>💀 Săn Boss (Tự Chọn)</h2>
+        <div class="item-row">
+            <div><b>Boss Ngày (x5 Vàng)</b><br><small>Còn lại: <span id="boss-daily-left">2</span>/2</small></div>
+            <button class="btn btn-blue" onclick="summonBoss('daily')">Triệu Hồi</button>
+        </div>
+        <div class="item-row">
+            <div><b>Boss Tuần (x10 Vàng)</b><br><small>Còn lại: <span id="boss-weekly-left">3</span>/3</small></div>
+            <button class="btn btn-blue" onclick="summonBoss('weekly')">Triệu Hồi</button>
+        </div>
+        <button class="btn" style="width:100%; background:#444; margin-top:10px;" onclick="returnToFarm()">🏳️ Quay lại ải thường</button>
+
+        <h2 style="margin-top: 30px;">🎬 Xem QC Nhận Quà (Adsterra)</h2>
+        <div class="item-row">
+            <div><b>+100 HP (10 Phút)</b></div>
+            <button class="btn btn-green" onclick="watchAd('hp')">Xem QC</button>
+        </div>
+        <div class="item-row">
+            <div><b>+75 ATK (10 Phút)</b></div>
+            <button class="btn btn-green" onclick="watchAd('atk')">Xem QC</button>
+        </div>
+        <div class="item-row">
+            <div><b>+10 DEF (10 Phút)</b></div>
+            <button class="btn btn-green" onclick="watchAd('def')">Xem QC</button>
+        </div>
+        <div class="item-row">
+            <div><b>Nhận 50 Coin</b></div>
+            <button class="btn btn-green" onclick="watchAd('coin50')">Xem QC</button>
+        </div>
+        <div class="item-row">
+            <div><b>Nhận 100 Coin (2 QC)</b></div>
+            <button class="btn btn-green" onclick="watchAd('coin100')">Xem QC (0/2)</button>
+        </div>
+    </div>
+
+    <div id="tab-market" class="panel-content">
+        <h2>🏪 Chợ Đồ (Global Market)</h2>
+        <p style="font-size:12px; color:#aaa;">*Bán lại đồ cũ cho người chơi khác.</p>
+        <div id="market-list">
+            <div style="text-align:center; padding:20px; color:#666;">Đang tải dữ liệu chợ...</div>
+        </div>
+        <button class="btn" style="width:100%; margin-top:10px" onclick="openSellModal()">➕ Đăng bán vật phẩm</button>
+
+        <h2>🤝 Trade Trực Tiếp</h2>
+        <input type="text" id="trade-name" placeholder="Tên người nhận (VD: PlayerX)">
+        <select id="trade-item-select"><option>Chọn vật phẩm...</option></select>
+        <button class="btn btn-blue" style="width:100%; margin-top:5px;" onclick="p2pTrade()">Gửi đồ</button>
+    </div>
+
+    <div id="tab-withdraw" class="panel-content">
+        <h2>🏦 Rút Tiền</h2>
+        <div style="background:#0f3460; padding:10px; border-radius:5px; margin-bottom:10px;">
+            Số dư khả dụng: <b style="color:yellow"><span id="w-balance">0</span> Đ</b>
+        </div>
         
-        <label>Số tài khoản / ví Momo:</label>
-        <input type="text" style="width:100%; padding:10px; margin:10px 0; background:#333; color:white; border:1px solid #555" placeholder="09xxxxxxx">
-        
-        <button class="buy-btn" style="width:100%; font-size:1.2rem" onclick="processWithdraw()">XÁC NHẬN RÚT</button>
-        <p class="withdraw-note">*Hệ thống sẽ xử lý trong 24h (Mô phỏng).</p>
+        <select id="w-method" onchange="toggleWithdrawForm()">
+            <option value="bank">Ngân Hàng (Min 20k)</option>
+            <option value="momo">Ví Momo (Min 20k)</option>
+            <option value="card">Thẻ Cào Viettel (10k - 100k)</option>
+        </select>
+
+        <div id="form-bank" class="w-form">
+            <input type="text" placeholder="Tên Ngân Hàng (VD: MBBank)">
+            <input type="text" placeholder="Số Tài Khoản">
+            <input type="text" placeholder="Tên Người Thụ Hưởng">
+        </div>
+        <div id="form-momo" class="w-form" style="display:none">
+            <input type="text" placeholder="Số Điện Thoại Momo">
+            <input type="text" placeholder="Tên Người Thụ Hưởng">
+        </div>
+        <div id="form-card" class="w-form" style="display:none">
+            <p style="font-size:12px;">Mệnh giá: 10k, 20k, 50k, 100k.</p>
+        </div>
+
+        <input type="number" id="w-amount" placeholder="Nhập số tiền cần rút...">
+        <button class="btn btn-green" style="width:100%; margin-top:10px; font-size:16px;" onclick="processWithdraw()">XÁC NHẬN RÚT</button>
+
+        <h2>📜 Lịch Sử Rút Tiền</h2>
+        <div id="w-history"></div>
+    </div>
+
+    <div class="footer-nav">
+        <button class="nav-btn" onclick="showPanel(null)">
+            <i class="fas fa-gamepad"></i> Battle
+        </button>
+        <button class="nav-btn" onclick="showPanel('tab-upgrade')">
+            <i class="fas fa-arrow-up"></i> Upgrade
+        </button>
+        <button class="nav-btn" onclick="showPanel('tab-shop')">
+            <i class="fas fa-store"></i> Shop
+        </button>
+        <button class="nav-btn" onclick="showPanel('tab-boss')">
+            <i class="fas fa-skull"></i> Boss/Ads
+        </button>
+        <button class="nav-btn" onclick="showPanel('tab-market')">
+            <i class="fas fa-handshake"></i> Chợ
+        </button>
+        <button class="nav-btn" onclick="showPanel('tab-withdraw')">
+            <i class="fas fa-wallet"></i> Rút Tiền
+        </button>
     </div>
 
     <script>
-        // --- Cấu hình Game ---
-        const SWORDS = [
-            { id: 0, name: "Tay Không", dmg: 1, price: 0 },
-            { id: 1, name: "Dao Găm Cùn", dmg: 5, price: 500 },
-            { id: 2, name: "Kiếm Sắt", dmg: 20, price: 5000 },
-            { id: 3, name: "Thánh Kiếm", dmg: 100, price: 50000 },
-            { id: 4, name: "Lưỡi Hái Tử Thần", dmg: 500, price: 200000 }
+        // --- DATA & CONFIG ---
+        const WEAPONS = [
+            {id: 'w0', name: 'Tay Không', val: 0, price: 0},
+            {id: 'w1', name: 'Kiếm Gỗ', val: 20, price: 200},
+            {id: 'w2', name: 'Kiếm Đá', val: 35, price: 500},
+            {id: 'w3', name: 'Kiếm Sắt', val: 50, price: 1000},
+            {id: 'w4', name: 'Kiếm Vàng', val: 75, price: 2000},
+            {id: 'w5', name: 'K.Kim Cương', val: 125, price: 3000},
+            {id: 'w6', name: 'K.Cầu Vồng', val: 180, price: 4500},
+            {id: 'w7', name: 'Kiếm Thánh', val: 300, price: 7000}
+        ];
+
+        const ARMORS = [
+            {id: 'a0', name: 'Áo Rách', def: 0, hp: 0, price: 0},
+            {id: 'a1', name: 'Giáp Vải', def: 3, hp: 50, price: 500},
+            {id: 'a2', name: 'Giáp Đồng', def: 7, hp: 75, price: 1000},
+            {id: 'a3', name: 'Giáp Sắt', def: 10, hp: 100, price: 1500},
+            {id: 'a4', name: 'G.Kim Cương', def: 15, hp: 150, price: 3000},
+            {id: 'a5', name: 'Giáp Thánh', def: 30, hp: 300, price: 5000}
         ];
 
         const PETS = [
-            { id: 0, name: "Không có", dps: 0, price: 0 },
-            { id: 1, name: "Gà Con", dps: 2, price: 2000 },
-            { id: 2, name: "Sói Hoang", dps: 15, price: 15000 },
-            { id: 3, name: "Rồng Lửa", dps: 80, price: 100000 }
+            {id: 'p0', name: 'Không', buff: 0, price: 0},
+            {id: 'p1', name: 'Gà Con', buff: 0.05, price: 500},
+            {id: 'p2', name: 'Chó Con', buff: 0.08, price: 1000},
+            {id: 'p3', name: 'Sói Xám', buff: 0.13, price: 1500},
+            {id: 'p4', name: 'Voi Ma Mút', buff: 0.20, price: 2300},
+            {id: 'p5', name: 'Rồng Thần', buff: 0.30, price: 3500}
         ];
 
-        let game = {
+        let player = {
+            name: "",
             coin: 0,
-            hp: 100,
-            maxHp: 100,
-            def: 0,
-            swordId: 0, // Đang dùng kiếm nào
-            petId: 0,   // Đang dùng pet nào
-            stage: 1
+            baseHp: 100,
+            baseAtk: 2,
+            baseCrit: 5,
+            weapon: 0,
+            armor: 0,
+            pet: 0,
+            stage: 1,
+            mobCount: 0,
+            inventory: []
         };
 
-        let enemy = {
-            currentHp: 20,
-            maxHp: 20,
-            isBoss: false,
-            dmg: 0, // Dame của boss
-            reward: 1
+        let buffs = { hp: 0, atk: 0, def: 0 };
+        let enemy = { hp: 10, maxHp: 10, isBoss: false, type: 'normal' };
+        
+        let bossLimits = {
+            daily: 2, weekly: 3, lastReset: Date.now()
         };
 
-        let bossInterval = null;
-        let petInterval = null;
+        let adCounter = 0; // For the "2 clicks" requirement
 
-        // --- Load Game ---
-        if(localStorage.getItem('hardcore_rpg')) {
-            game = JSON.parse(localStorage.getItem('hardcore_rpg'));
-        }
+        // --- CORE FUNCTIONS ---
 
-        // --- Hệ thống ---
-        function init() {
+        function startGame() {
+            let name = document.getElementById('player-name-input').value;
+            // Validate: Min 5 chars + number check
+            if (name.length < 5 || !/\d/.test(name)) {
+                alert("Tên phải có ít nhất 5 ký tự và bao gồm số!");
+                return;
+            }
+            player.name = name;
+            document.getElementById('login-screen').style.display = 'none';
+            
+            loadData();
             renderShop();
-            spawnNormal();
+            spawnEnemy();
             updateUI();
-            
-            // Pet đánh tự động
-            petInterval = setInterval(() => {
-                if(game.petId > 0 && enemy.currentHp > 0) {
-                    let petDmg = PETS[game.petId].dps;
-                    damageEnemy(petDmg, false);
-                }
-            }, 1000);
         }
 
-        function updateUI() {
-            // Player stats
-            const currentSword = SWORDS[game.swordId];
-            const currentPet = PETS[game.petId];
+        function spawnEnemy() {
+            let isBossStage = (player.mobCount >= 10);
             
-            document.getElementById('ui-hp').innerText = game.hp;
-            document.getElementById('ui-maxhp').innerText = game.maxHp;
-            document.getElementById('ui-atk').innerText = currentSword.dmg;
-            document.getElementById('ui-coin').innerText = game.coin.toLocaleString();
-            document.getElementById('w-coin').innerText = game.coin.toLocaleString();
-
-            // Enemy stats
-            document.getElementById('enemy-hp').innerText = Math.max(0, enemy.currentHp);
-            let percent = (enemy.currentHp / enemy.maxHp) * 100;
-            document.getElementById('enemy-hp-bar').style.width = percent + "%";
-
-            localStorage.setItem('hardcore_rpg', JSON.stringify(game));
-        }
-
-        function renderShop() {
-            // Render Swords
-            let sHtml = "";
-            SWORDS.forEach(s => {
-                if(s.id === 0) return;
-                let owned = game.swordId >= s.id;
-                let btnText = owned ? "Đã Sở Hữu" : `Mua (${s.price.toLocaleString()})`;
-                let disabled = owned ? "disabled" : "";
+            if(enemy.type === 'daily' || enemy.type === 'weekly') {
+                // Keep current boss
+            } else {
+                enemy.isBoss = isBossStage;
+                enemy.type = 'normal';
                 
-                sHtml += `
-                <div class="shop-item">
-                    <div>
-                        <div style="font-weight:bold; color:orange">${s.name}</div>
-                        <div style="font-size:0.8rem">Dame: ${s.dmg}</div>
-                    </div>
-                    <button class="buy-btn" ${disabled} onclick="buySword(${s.id})">${btnText}</button>
-                </div>`;
-            });
-            document.getElementById('sword-list').innerHTML = sHtml;
-
-            // Render Pets
-            let pHtml = "";
-            PETS.forEach(p => {
-                if(p.id === 0) return;
-                let owned = game.petId >= p.id;
-                let btnText = owned ? "Đã có" : `Mua (${p.price.toLocaleString()})`;
-                let disabled = owned ? "disabled" : "";
+                // Formula for HP
+                let baseHp = 20 * Math.pow(1.15, player.stage);
+                enemy.maxHp = Math.floor(baseHp * (isBossStage ? 3 : 1)); 
+                enemy.hp = enemy.maxHp;
                 
-                pHtml += `
-                <div class="shop-item">
-                    <div>
-                        <div style="font-weight:bold; color:cyan">${p.name}</div>
-                        <div style="font-size:0.8rem">Tự đánh: ${p.dps} dmg/s</div>
-                    </div>
-                    <button class="buy-btn" ${disabled} onclick="buyPet(${p.id})">${btnText}</button>
-                </div>`;
-            });
-            document.getElementById('pet-list').innerHTML = pHtml;
-        }
-
-        // --- Logic Mua Sắm ---
-        function buySword(id) {
-            let item = SWORDS[id];
-            if(game.coin >= item.price) {
-                game.coin -= item.price;
-                game.swordId = id; // Trang bị luôn
-                showNotify(`Đã mua và trang bị ${item.name}!`);
-                renderShop();
-                updateUI();
-            } else {
-                showNotify("Không đủ tiền!");
+                let sprites = ["👾", "💀", "👹", "👽", "🤖", "👻"];
+                document.getElementById('enemy-sprite').innerText = isBossStage ? "👿" : sprites[player.stage % 6];
+                document.getElementById('enemy-name').innerText = isBossStage ? "BOSS ẢI " + player.stage : "Quái Ải " + player.stage;
             }
-        }
-
-        function buyPet(id) {
-            let item = PETS[id];
-            if(game.coin >= item.price) {
-                game.coin -= item.price;
-                game.petId = id;
-                showNotify(`Đã gọi ${item.name} ra trợ chiến!`);
-                renderShop();
-                updateUI();
-            } else {
-                showNotify("Không đủ tiền!");
-            }
-        }
-
-        // --- Logic Chiến Đấu ---
-        function spawnNormal() {
-            clearInterval(bossInterval); // Dừng boss đánh
-            document.getElementById('boss-badge').style.display = 'none';
-            enemy.isBoss = false;
-            
-            // Quái thường máu tăng theo stage, nhưng ít tiền (Hardcore)
-            enemy.maxHp = Math.floor(20 * Math.pow(1.2, game.stage)); 
-            enemy.currentHp = enemy.maxHp;
-            enemy.reward = Math.floor(2 * Math.pow(1.1, game.stage)); // Tiền rất ít
-            enemy.dmg = 0;
-            
-            document.getElementById('enemy-name').innerText = "Quái Cấp " + game.stage;
-            document.getElementById('enemy-sprite').innerText = "👾";
-            updateUI();
-        }
-
-        function summonBoss(level) {
-            clearInterval(bossInterval);
-            document.getElementById('boss-badge').style.display = 'block';
-            enemy.isBoss = true;
-            switchTab('battle-screen'); // Quay về màn hình đánh
-            
-            if(level === 1) {
-                enemy.maxHp = 5000;
-                enemy.reward = 5000;
-                enemy.dmg = 10; // Đánh 10 máu mỗi giây
-                document.getElementById('enemy-name').innerText = "BOSS KHÔ LÂU";
-                document.getElementById('enemy-sprite').innerText = "💀";
-            } else {
-                enemy.maxHp = 50000;
-                enemy.reward = 50000;
-                enemy.dmg = 50; // Đánh 50 máu mỗi giây
-                document.getElementById('enemy-name').innerText = "QUỶ VƯƠNG";
-                document.getElementById('enemy-sprite').innerText = "👹";
-            }
-            enemy.currentHp = enemy.maxHp;
-            showNotify("BOSS ĐÃ XUẤT HIỆN! CẨN THẬN!");
-            updateUI();
-
-            // BOSS TỰ ĐÁNH (Mechanic mới)
-            bossInterval = setInterval(() => {
-                if(game.hp > 0) {
-                    game.hp -= enemy.dmg;
-                    
-                    // Rung màn hình
-                    document.body.classList.add('shake');
-                    setTimeout(() => document.body.classList.remove('shake'), 500);
-                    
-                    // Hiện dame boss gây ra
-                    showFloatText(`-${enemy.dmg}`, window.innerWidth/2, window.innerHeight/2, 'red');
-
-                    if(game.hp <= 0) {
-                        game.hp = 0;
-                        gameOver();
-                    }
-                    updateUI();
-                }
-            }, 1000);
-        }
-
-        function fleeBoss() {
-            spawnNormal();
-            // Hồi phục 1 ít máu khi chạy
-            game.hp = game.maxHp;
-            showNotify("Đã chạy trốn thành công!");
-        }
-
-        function gameOver() {
-            clearInterval(bossInterval);
-            alert("BẠN ĐÃ BỊ BOSS ĐÁNH BẠI!");
-            game.hp = game.maxHp; // Hồi sinh
-            spawnNormal();
+            updateHpBar();
         }
 
         function playerAttack(e) {
-            let dmg = SWORDS[game.swordId].dmg;
-            damageEnemy(dmg, true, e.clientX, e.clientY);
+            // Calculate Stats
+            let wp = WEAPONS[player.weapon];
+            let am = ARMORS[player.armor];
+            let pt = PETS[player.pet];
+
+            let totalAtk = (player.baseAtk + wp.val + buffs.atk) * (1 + pt.buff);
+            let isCrit = Math.random() * 100 < player.baseCrit;
+            if(isCrit) totalAtk *= 2;
+            
+            totalAtk = Math.floor(totalAtk);
+            enemy.hp -= totalAtk;
+
+            // Visuals
+            createDamagePopup(totalAtk, isCrit, e);
+            document.getElementById('enemy-sprite').style.transform = "scale(0.8)";
+            setTimeout(()=> document.getElementById('enemy-sprite').style.transform = "scale(1)", 100);
+
+            if(enemy.hp <= 0) {
+                winBattle();
+            }
+            updateHpBar();
         }
 
-        function damageEnemy(amount, isPlayer, x, y) {
-            enemy.currentHp -= amount;
+        function winBattle() {
+            // Reward
+            let gold = Math.floor(5 * Math.pow(1.1, player.stage)); // Base gold
             
-            if(isPlayer) {
-                showFloatText(`-${amount}`, x, y, 'white');
+            if(enemy.type === 'daily') {
+                gold *= 5;
+                alert("Đã diệt Boss Ngày! +"+gold+"Đ");
+                returnToFarm();
+            } else if (enemy.type === 'weekly') {
+                gold *= 10;
+                alert("Đã diệt Boss Tuần! +"+gold+"Đ");
+                returnToFarm();
+            } else if (enemy.isBoss) {
+                // Normal Boss
+                gold *= 2;
+                player.stage++;
+                player.mobCount = 0;
+            } else {
+                // Normal Mob
+                player.mobCount++;
             }
 
-            if(enemy.currentHp <= 0) {
-                // Thắng
-                game.coin += enemy.reward;
-                showNotify(`Hạ gục! +${enemy.reward} Coin`);
-                
-                if(enemy.isBoss) {
-                    alert(`CHÚC MỪNG! BẠN ĐÃ DIỆT BOSS VÀ NHẬN ${enemy.reward} COIN`);
-                    game.hp = game.maxHp; // Hồi máu sau khi thắng boss
-                    spawnNormal();
-                } else {
-                    game.stage++;
-                    spawnNormal();
-                }
-            }
+            player.coin += gold;
+            spawnEnemy();
             updateUI();
         }
 
-        // --- Rút tiền ---
+        function summonBoss(type) {
+            checkBossReset();
+            
+            if(type === 'daily') {
+                if(bossLimits.daily > 0) {
+                    bossLimits.daily--;
+                    setupBossBattle("BOSS NGÀY", 5); // x5 strength
+                    enemy.type = 'daily';
+                } else alert("Hết lượt Boss ngày!");
+            } else {
+                if(bossLimits.weekly > 0) {
+                    bossLimits.weekly--;
+                    setupBossBattle("BOSS TUẦN", 10); // x10 strength
+                    enemy.type = 'weekly';
+                } else alert("Hết lượt Boss tuần!");
+            }
+            showPanel(null); // Close panel
+        }
+
+        function setupBossBattle(name, multiplier) {
+            let baseHp = 20 * Math.pow(1.15, player.stage);
+            enemy.maxHp = Math.floor(baseHp * 10 * multiplier);
+            enemy.hp = enemy.maxHp;
+            enemy.isBoss = true;
+            document.getElementById('enemy-sprite').innerText = "🐲";
+            document.getElementById('enemy-name').innerText = name;
+            updateHpBar();
+        }
+
+        function returnToFarm() {
+            enemy.type = 'normal';
+            spawnEnemy();
+        }
+
+        function checkBossReset() {
+            let now = new Date();
+            let last = new Date(bossLimits.lastReset);
+            if(now.getDate() !== last.getDate()) {
+                bossLimits.daily = 2;
+                // Simple weekly reset logic (if monday)
+                if(now.getDay() === 1) bossLimits.weekly = 3;
+                bossLimits.lastReset = Date.now();
+            }
+        }
+
+        // --- SHOP & UPGRADE ---
+        
+        function upgradeStat(type) {
+            let cost = 0;
+            if(type === 'atk') {
+                cost = 100 + player.baseAtk * 10;
+                if(player.coin >= cost) {
+                    player.coin -= cost;
+                    player.baseAtk += 2;
+                    updateUI();
+                }
+            } else if (type === 'hp') {
+                cost = 100 + (player.baseHp - 100);
+                if(player.coin >= cost) {
+                    player.coin -= cost;
+                    player.baseHp += 20;
+                    updateUI();
+                }
+            } else if (type === 'crit') {
+                cost = 200 + player.baseCrit * 50;
+                if(player.coin >= cost) {
+                    player.coin -= cost;
+                    player.baseCrit += 1;
+                    updateUI();
+                }
+            }
+        }
+
+        function renderShop() {
+            // Weapons
+            let wHtml = "";
+            WEAPONS.forEach((w, idx) => {
+                if(idx === 0) return;
+                let owned = player.weapon >= idx;
+                let btn = owned ? `<button class="btn" disabled>Đã Mua</button>` : 
+                          `<button class="btn" onclick="buyItem('weapon', ${idx})">Mua ${w.price}Đ</button>`;
+                if(player.weapon === idx) btn = `<button class="btn btn-green">Đang Đeo</button>`;
+                
+                wHtml += `<div class="item-row"><div><b>${w.name}</b><br><small>+${w.val} Dame</small></div>${btn}</div>`;
+            });
+            document.getElementById('shop-weapon-list').innerHTML = wHtml;
+
+            // Armors
+            let aHtml = "";
+            ARMORS.forEach((a, idx) => {
+                if(idx === 0) return;
+                let owned = player.armor >= idx;
+                let btn = owned ? `<button class="btn" disabled>Đã Mua</button>` : 
+                          `<button class="btn" onclick="buyItem('armor', ${idx})">Mua ${a.price}Đ</button>`;
+                
+                aHtml += `<div class="item-row"><div><b>${a.name}</b><br><small>+${a.def} Def, +${a.hp} HP</small></div>${btn}</div>`;
+            });
+            document.getElementById('shop-armor-list').innerHTML = aHtml;
+            
+            // Pets
+            let pHtml = "";
+            PETS.forEach((p, idx) => {
+                if(idx === 0) return;
+                let owned = player.pet === idx; // Only own 1 active pet for simplicity
+                let btn = `<button class="btn" onclick="buyItem('pet', ${idx})">Mua ${p.price}Đ</button>`;
+                if(player.pet === idx) btn = `<button class="btn btn-green">Đang dùng</button>`;
+
+                pHtml += `<div class="item-row"><div><b>${p.name}</b><br><small>+${p.buff*100}% ATK</small></div>${btn}</div>`;
+            });
+            document.getElementById('shop-pet-list').innerHTML = pHtml;
+        }
+
+        function buyItem(cat, id) {
+            let price = 0;
+            if(cat === 'weapon') price = WEAPONS[id].price;
+            if(cat === 'armor') price = ARMORS[id].price;
+            if(cat === 'pet') price = PETS[id].price;
+
+            if(player.coin >= price) {
+                player.coin -= price;
+                if(cat === 'weapon') player.weapon = id;
+                if(cat === 'armor') player.armor = id;
+                if(cat === 'pet') player.pet = id;
+                alert("Mua thành công!");
+                updateUI();
+                renderShop();
+            } else {
+                alert("Không đủ tiền!");
+            }
+        }
+
+        // --- ADS SYSTEM ---
+        function watchAd(type) {
+            // Simulate Adsterra click
+            let confirmed = confirm("Bạn sẽ được chuyển đến trang quảng cáo (Adsterra) để nhận thưởng?");
+            if(confirmed) {
+                window.open("https://adsterra.com/", "_blank");
+                
+                setTimeout(() => {
+                    if(type === 'hp') {
+                        buffs.hp = 100;
+                        setTimeout(() => { buffs.hp = 0; updateUI(); }, 600000); // 10 mins
+                        alert("Đã nhận Buff +100HP trong 10 phút!");
+                    } else if(type === 'atk') {
+                        buffs.atk = 75;
+                        setTimeout(() => { buffs.atk = 0; updateUI(); }, 600000);
+                        alert("Đã nhận Buff +75 ATK trong 10 phút!");
+                    } else if(type === 'def') {
+                        buffs.def = 10;
+                        setTimeout(() => { buffs.def = 0; updateUI(); }, 600000);
+                        alert("Đã nhận Buff +10 DEF trong 10 phút!");
+                    } else if(type === 'coin50') {
+                        // Variable coin logic
+                        let c = Math.floor(Math.random() * 20) + 40; // 40-60
+                        player.coin += c;
+                        alert("Nhận được " + c + " Coin!");
+                    } else if (type === 'coin100') {
+                        adCounter++;
+                        if(adCounter >= 2) {
+                            let c = Math.floor(Math.random() * 50) + 80; // 80-130
+                            player.coin += c;
+                            alert("Đã xem 2 QC. Nhận " + c + " Coin!");
+                            adCounter = 0;
+                        } else {
+                            alert("Đã xem 1/2 QC. Hãy xem thêm 1 QC nữa!");
+                        }
+                    }
+                    updateUI();
+                }, 2000); // Simulate wait
+            }
+        }
+
+        // --- MARKET & TRADE ---
+        function openSellModal() {
+            // Simplified: Sell current weapon for 50% price
+            let wp = WEAPONS[player.weapon];
+            if(player.weapon === 0) {
+                alert("Không có gì để bán!"); return;
+            }
+            if(confirm(`Bạn có muốn đăng bán ${wp.name} lên chợ với giá ${wp.price/2}Đ không? (Mất vũ khí)`)) {
+                player.weapon = 0;
+                player.coin += (wp.price / 2); // Instant sell for simplicity in "Offline" mode
+                alert("Đã bán thành công!");
+                renderShop();
+                updateUI();
+            }
+        }
+
+        function p2pTrade() {
+            let target = document.getElementById('trade-name').value;
+            if(!target) return alert("Nhập tên người nhận!");
+            alert(`Đã gửi yêu cầu giao dịch đến ${target} (Giả lập)`);
+        }
+
+        function loadMarket() {
+            // Simulated fake market data
+            let html = "";
+            let randomItems = [
+                {name: "Kiếm Gỗ", price: 100, seller: "DragonSlayer"},
+                {name: "Giáp Vải", price: 200, seller: "NoobMaster69"},
+                {name: "Kiếm Sắt", price: 800, seller: "ProVjpPromax"}
+            ];
+            randomItems.forEach(i => {
+                html += `<div class="item-row"><div><b>${i.name}</b><br><small>Người bán: ${i.seller}</small></div><button class="btn btn-green" onclick="alert('Đã mua!')">Mua ${i.price}Đ</button></div>`;
+            });
+            document.getElementById('market-list').innerHTML = html;
+        }
+
+        // --- WITHDRAW ---
+        function toggleWithdrawForm() {
+            document.querySelectorAll('.w-form').forEach(d => d.style.display = 'none');
+            let val = document.getElementById('w-method').value;
+            document.getElementById('form-'+val).style.display = 'block';
+        }
+
         function processWithdraw() {
             let amount = parseInt(document.getElementById('w-amount').value);
-            if(!amount || amount < 20000) {
-                alert("Số tiền rút tối thiểu là 20.000 Coin!");
-                return;
+            let method = document.getElementById('w-method').value;
+            
+            // Limits
+            let min = 20000;
+            let max = 99999999;
+            if(method === 'card') { min = 10000; max = 100000; }
+            
+            if(!amount || amount < min) {
+                alert(`Rút tối thiểu ${min}Đ!`); return;
             }
-            if(game.coin >= amount) {
-                game.coin -= amount;
+            if(method === 'card' && amount > max) {
+                 alert(`Thẻ cào tối đa ${max}Đ!`); return;
+            }
+
+            if(player.coin >= amount) {
+                player.coin -= amount;
+                
+                // Add to history
+                let date = new Date().toLocaleString();
+                let histHtml = `<div class="history-item">
+                    <b>${amount}Đ</b> - ${method.toUpperCase()} <br>
+                    <span style="color:#aaa">${date}</span> - <span style="color:yellow">Đang duyệt</span>
+                    ${method === 'card' ? '<br>Mã thẻ: Đang chờ...' : ''}
+                </div>`;
+                
+                let histContainer = document.getElementById('w-history');
+                histContainer.innerHTML = histHtml + histContainer.innerHTML;
+
+                localStorage.setItem('game_history', histContainer.innerHTML);
+                alert("Gửi yêu cầu rút tiền thành công!");
                 updateUI();
-                alert(`Đã gửi yêu cầu rút ${amount.toLocaleString()} VNĐ.\nHệ thống đang xử lý...`);
             } else {
                 alert("Số dư không đủ!");
             }
         }
 
-        // Utility
-        function switchTab(id) {
-            if(id === 'battle-screen') {
-                 // Do nothing, just scroll or logic
-                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        // --- UTILS & UI UPDATE ---
+        function updateUI() {
+            let wp = WEAPONS[player.weapon];
+            let am = ARMORS[player.armor];
+            let pt = PETS[player.pet];
+
+            // Stats Calc
+            let realHp = player.baseHp + am.hp + buffs.hp;
+            let realAtk = (player.baseAtk + wp.val + buffs.atk) * (1 + pt.buff);
+            let realDef = am.def + buffs.def;
+
+            // UI
+            document.getElementById('ui-name').innerText = player.name;
+            document.getElementById('ui-hp').innerText = Math.floor(realHp);
+            document.getElementById('ui-maxhp').innerText = Math.floor(realHp);
+            document.getElementById('ui-atk').innerText = Math.floor(realAtk);
+            document.getElementById('ui-crit').innerText = player.baseCrit;
+            document.getElementById('ui-def').innerText = realDef;
+            document.getElementById('ui-coin').innerText = player.coin.toLocaleString();
+            document.getElementById('w-balance').innerText = player.coin.toLocaleString();
+            
+            document.getElementById('ui-stage').innerText = player.stage;
+            document.getElementById('ui-mob-count').innerText = player.mobCount;
+            
+            // Boss counts
+            document.getElementById('boss-daily-left').innerText = bossLimits.daily;
+            document.getElementById('boss-weekly-left').innerText = bossLimits.weekly;
+
+            // Costs
+            document.getElementById('cost-atk').innerText = 100 + player.baseAtk * 10;
+            document.getElementById('cost-hp').innerText = 100 + (player.baseHp - 100);
+            document.getElementById('cost-crit').innerText = 200 + player.baseCrit * 50;
+
+            // Buff bar
+            if(buffs.hp > 0 || buffs.atk > 0) document.getElementById('buff-bar').style.display = 'block';
+            else document.getElementById('buff-bar').style.display = 'none';
+
+            saveData();
+        }
+
+        function updateHpBar() {
+            let pct = (enemy.hp / enemy.maxHp) * 100;
+            if(pct < 0) pct = 0;
+            document.getElementById('enemy-hp-bar').style.width = pct + "%";
+            document.getElementById('enemy-hp').innerText = enemy.hp;
+        }
+
+        function createDamagePopup(dmg, isCrit, e) {
+            let el = document.createElement('div');
+            el.className = 'dmg-popup';
+            if(isCrit) el.classList.add('crit');
+            el.innerText = isCrit ? "CRIT " + dmg : dmg;
+            
+            let x, y;
+            if(e) {
+                x = e.clientX; y = e.clientY;
             } else {
-                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-                document.getElementById(id).classList.add('active');
+                x = window.innerWidth/2; y = window.innerHeight/2;
             }
             
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-        }
-
-        function showNotify(msg) {
-            let n = document.getElementById('notify');
-            n.innerText = msg;
-            n.style.display = 'block';
-            setTimeout(() => n.style.display = 'none', 2000);
-        }
-
-        function showFloatText(txt, x, y, color) {
-            let el = document.createElement('div');
-            el.className = 'float-text';
-            el.innerText = txt;
-            el.style.left = (x || window.innerWidth/2) + 'px';
-            el.style.top = (y || 200) + 'px';
-            el.style.color = color;
+            el.style.left = (x - 20) + 'px';
+            el.style.top = (y - 50) + 'px';
             document.body.appendChild(el);
             setTimeout(() => el.remove(), 800);
         }
 
-        // Start
-        init();
+        function showPanel(id) {
+            document.querySelectorAll('.panel-content').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            
+            if(id) {
+                document.getElementById(id).classList.add('active');
+                event.currentTarget.classList.add('active');
+                if(id === 'tab-market') loadMarket();
+            }
+        }
+
+        // --- SAVE / LOAD ---
+        function saveData() {
+            let data = {
+                player: player,
+                bossLimits: bossLimits
+            };
+            localStorage.setItem('rpg_online_save', JSON.stringify(data));
+        }
+
+        function loadData() {
+            let saved = localStorage.getItem('rpg_online_save');
+            if(saved) {
+                let d = JSON.parse(saved);
+                player = {...player, ...d.player}; // Merge incase new fields
+                bossLimits = d.bossLimits;
+                // Restore history
+                let hist = localStorage.getItem('game_history');
+                if(hist) document.getElementById('w-history').innerHTML = hist;
+            }
+        }
 
     </script>
 </body>
