@@ -604,6 +604,9 @@
             gameState.player.name = playerName;
             gameState.gameStarted = true;
             saveGame();
+            setTimeout(() => {
+                startBattle();
+            }, 500);
             render();
         }
 
