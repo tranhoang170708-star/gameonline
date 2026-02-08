@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MMO Web Game</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial;
+    background:#0f172a;
+    color:white;
+    text-align:center;
+}
+
+.page{ display:none; padding:20px; }
+.active{ display:block; }
+
+input{
+    padding:10px;
+    width:80%;
+    border-radius:8px;
+    border:none;
+}
+
+button{
+    padding:12px 20px;
+    margin:5px;
+    border:none;
+    border-radius:8px;
+    background:#22c55e;
+    font-size:16px;
+}
+
+.card{
+    background:#1e293b;
+    padding:15px;
+    margin:10px;
+    border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="page active">
+
+<h2>🎮 MMO Game</h2>
+
+<input id="user" placeholder="Tên người chơi"><br><br>
+
+<button onclick="login()">Vào Game</button>
+
+</div>
+
+<!-- GAME -->
+<div id="game" class="page">
+
+<h3>👤 <span id="name"></span></h3>
+<h2>💰 Coin: <span id="coin">0</span></h2>
+
+<div class="card">
+<button onclick="clickCoin()">CLICK +1</button>
+</div>
+
+<div class="card">
+<h4>🎯 Nhiệm vụ ngày</h4>
+<p>Đạt 50 coin</p>
+<p id="task">0 / 50</p>
+</div>
+
+<div class="card">
+<h4>🎰 Vòng quay</h4>
+<button onclick="spin()">Quay</button>
+<p id="spin"></p>
+</div>
+
+<div class="card">
+<h4>💵 Rút tiền (Demo)</h4>
+<p>1000 coin = 1$</p>
+<button onclick="withdraw()">Rút</button>
+<p id="wd"></p>
+</div>
+
+<div class="card">
+<button onclick="logout()">Đăng xuất</button>
+</div>
+
+</div>
+
+<script>
+
+let user = localStorage.getItem("user");
+let coin = localStorage.getItem("coin") || 0;
+let task = localStorage.getItem("task") || 0;
+
+if(user){
+    showGame();
+}
+
+function login(){
+    let u = document.getElementById("user").value;
+
+    if(u.length < 3){
+        alert("Tên ít nhất 3 ký tự");
+        return;
+    }
+
+    localStorage.setItem("user",u);
+    localStorage.setItem("coin",0);
+    localStorage.setItem("task",0);
+
+    location.reload();
+}
+
+function showGame(){
+    document.getElementById("login").classList.remove("active");
+    document.getElementById("game").classList.add("active");
+
+    document.getElementById("name").innerText=user;
+    update();
+}
+
+function clickCoin(){
+    coin++;
+    task++;
+
+    save();
+}
+
+function spin(){
+
+    let r = Math.floor(Math.random()*10)+1;
+
+    if(r >= 8){
+        coin += 20;
+        document.getElementById("spin").innerText="🎉 Trúng 20 coin!";
+    }else{
+        document.getElementById("spin").innerText="😢 Xịt!";
+    }
+
+    save();
+}
+
+function withdraw(){
+
+    if(coin < 1000){
+        document.getElementById("wd").innerText="❌ Chưa đủ coin!";
+        return;
+    }
+
+    coin -= 1000;
+
+    document.getElementById("wd").innerText="✅ Đã gửi yêu cầu rút (demo)";
+
+    save();
+}
+
+function save(){
+
+    localStorage.setItem("coin",coin);
+    localStorage.setItem("task",task);
+
+    update();
+}
+
+function update(){
+
+    document.getElementById("coin").innerText=coin;
+    document.getElementById("task").innerText=task+" / 50";
+}
+
+function logout(){
+    localStorage.clear();
+    location.reload();
+}
+
+</script>
+
+</body>
+</html>
