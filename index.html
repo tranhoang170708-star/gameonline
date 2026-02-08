@@ -72,6 +72,21 @@
             animation: slideIn 0.3s ease-out;
         }
 
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-100%);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .slide-down {
+            animation: slideDown 0.5s ease-out;
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -116,6 +131,17 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+        .notification-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            background: linear-gradient(135deg, rgba(236, 72, 153, 0.95), rgba(139, 92, 246, 0.95));
+            border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -130,7 +156,65 @@
                 this.WITHDRAW_KEY = 'rpg_withdraw_db';
                 this.CURRENT_USER_KEY = 'rpg_current_user';
                 this.ADMINS_KEY = 'rpg_admins_list';
+                this.NOTIFICATIONS_KEY = 'rpg_notifications';
                 this.MASTER_ADMIN = 'Quyet170708'; // Admin cố định
+            }
+
+            // ===== NOTIFICATIONS MANAGEMENT =====
+            getAllNotifications() {
+                try {
+                    const notifs = localStorage.getItem(this.NOTIFICATIONS_KEY);
+                    return notifs ? JSON.parse(notifs) : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            saveNotifications(notifications) {
+                try {
+                    localStorage.setItem(this.NOTIFICATIONS_KEY, JSON.stringify(notifications));
+                    return true;
+                } catch (e) {
+                    console.error('Lỗi lưu notifications:', e);
+                    return false;
+                }
+            }
+
+            addNotification(message, type = 'info') {
+                const notifications = this.getAllNotifications();
+                const newNotif = {
+                    id: Date.now(),
+                    message: message,
+                    type: type, // info, success, warning, error
+                    createdAt: Date.now(),
+                    dismissed: false
+                };
+                notifications.unshift(newNotif);
+                // Giữ tối đa 50 thông báo
+                if (notifications.length > 50) {
+                    notifications.splice(50);
+                }
+                this.saveNotifications(notifications);
+                return newNotif;
+            }
+
+            getActiveNotifications() {
+                const notifications = this.getAllNotifications();
+                // Lấy thông báo trong 24h và chưa dismiss
+                const now = Date.now();
+                const dayMs = 24 * 60 * 60 * 1000;
+                return notifications.filter(n => !n.dismissed && (now - n.createdAt) < dayMs);
+            }
+
+            dismissNotification(notifId) {
+                const notifications = this.getAllNotifications();
+                const notif = notifications.find(n => n.id === notifId);
+                if (notif) {
+                    notif.dismissed = true;
+                    this.saveNotifications(notifications);
+                    return true;
+                }
+                return false;
             }
 
             // ===== ADMIN MANAGEMENT =====
@@ -296,6 +380,21 @@
                 return users[username] ? users[username].playerData : null;
             }
 
+            // ===== ADMIN: ADD/REMOVE GOLD =====
+            modifyUserGold(username, amount) {
+                const users = this.getAllUsers();
+                if (users[username]) {
+                    users[username].playerData.gold += amount;
+                    // Không cho âm
+                    if (users[username].playerData.gold < 0) {
+                        users[username].playerData.gold = 0;
+                    }
+                    this.saveAllUsers(users);
+                    return { success: true, gold: users[username].playerData.gold };
+                }
+                return { success: false, message: 'User không tồn tại!' };
+            }
+
             // ===== MARKET DATABASE =====
             getAllMarketListings() {
                 try {
@@ -448,7 +547,8 @@
             marketView: 'browse',
             selectedItemToSell: null,
             sellPrice: '',
-            showSupport: false
+            showSupport: false,
+            currentNotification: null
         };
 
         // ==================== SHOP DATA ====================
@@ -520,6 +620,9 @@
                 gameState.player = result.userData;
                 gameState.authError = '';
                 
+                // Kiểm tra thông báo
+                checkNotifications();
+                
                 setTimeout(() => {
                     if (!gameState.isInBattle && gameState.currentView === 'game') {
                         startBattle();
@@ -542,6 +645,24 @@
                 gameState.player = null;
                 gameState.authError = '';
                 gameState.authView = 'login';
+                render();
+            }
+        }
+
+        // ==================== NOTIFICATION FUNCTIONS ====================
+        function checkNotifications() {
+            const activeNotifs = DB.getActiveNotifications();
+            if (activeNotifs.length > 0 && !gameState.currentNotification) {
+                gameState.currentNotification = activeNotifs[0];
+                render();
+            }
+        }
+
+        function dismissCurrentNotification() {
+            if (gameState.currentNotification) {
+                DB.dismissNotification(gameState.currentNotification.id);
+                gameState.currentNotification = null;
+                checkNotifications(); // Kiểm tra xem còn thông báo nào không
                 render();
             }
         }
@@ -583,8 +704,10 @@
             
             let hp = baseHp;
             let atk = baseAtk;
-            let goldReward = 10 + stage * 5;
-            let expReward = 20 + stage * 10;
+            // GIẢM phần thưởng vàng xuống 60% so với trước
+            let goldReward = Math.floor((10 + stage * 5) * 0.6);
+            // GIẢM phần thưởng exp xuống 70% so với trước
+            let expReward = Math.floor((20 + stage * 10) * 0.7);
             let name = `Quái Vật Lv.${stage}`;
             let icon = '👾';
 
@@ -592,22 +715,22 @@
                 if (bossType === 'stage') {
                     hp = baseHp * 1.3;
                     atk = baseAtk * 1.2;
-                    goldReward *= 2;
-                    expReward *= 2;
+                    goldReward = Math.floor(goldReward * 1.8); // Giảm từ 2x xuống 1.8x
+                    expReward = Math.floor(expReward * 1.8); // Giảm từ 2x xuống 1.8x
                     name = `Boss Ải ${Math.floor(stage / 10) + 1}`;
                     icon = '👹';
                 } else if (bossType === 'daily') {
                     hp = baseHp * 3;
                     atk = baseAtk * 2;
-                    goldReward *= 5;
-                    expReward *= 3;
+                    goldReward = Math.floor(goldReward * 4); // Giảm từ 5x xuống 4x
+                    expReward = Math.floor(expReward * 2.5); // Giảm từ 3x xuống 2.5x
                     name = `Boss Ngày`;
                     icon = '🔥';
                 } else if (bossType === 'weekly') {
                     hp = baseHp * 5;
                     atk = baseAtk * 3;
-                    goldReward *= 10;
-                    expReward *= 5;
+                    goldReward = Math.floor(goldReward * 7); // Giảm từ 10x xuống 7x
+                    expReward = Math.floor(expReward * 4); // Giảm từ 5x xuống 4x
                     name = `Boss Tuần`;
                     icon = '⚡';
                 }
@@ -1003,7 +1126,8 @@
             const baseReward = 50;
             const difficulty = Math.max(1, gameState.player.currentStage / 10);
             const randomBonus = Math.random() * 0.5 + 0.75;
-            return Math.floor(baseReward * difficulty * randomBonus);
+            // GIẢM phần thưởng từ QC xuống 70%
+            return Math.floor(baseReward * difficulty * randomBonus * 0.7);
         }
 
         function loadAdsterraScript(callback) {
@@ -1242,6 +1366,70 @@
             }
         }
 
+        // ===== ADMIN: MODIFY USER GOLD =====
+        function showModifyGoldForm() {
+            const username = prompt('Nhập username cần cộng/trừ tiền:');
+            if (!username) return;
+
+            if (!DB.userExists(username)) {
+                alert('User không tồn tại!');
+                return;
+            }
+
+            const amountStr = prompt(`Nhập số tiền cho ${username}:\n\n• Số dương để CỘNG tiền\n• Số âm để TRỪ tiền\n\nVí dụ: 1000 hoặc -500`);
+            if (!amountStr) return;
+
+            const amount = parseInt(amountStr);
+            if (isNaN(amount)) {
+                alert('Số tiền không hợp lệ!');
+                return;
+            }
+
+            const result = DB.modifyUserGold(username, amount);
+            if (result.success) {
+                const action = amount > 0 ? 'CỘNG' : 'TRỪ';
+                alert(`✅ Đã ${action} ${Math.abs(amount).toLocaleString()}đ cho ${username}!\n\nSố dư hiện tại: ${result.gold.toLocaleString()}đ`);
+                
+                // Gửi thông báo cho user đó
+                if (amount > 0) {
+                    DB.addNotification(`💰 Admin đã cộng cho bạn ${amount.toLocaleString()}đ!`, 'success');
+                } else {
+                    DB.addNotification(`⚠️ Admin đã trừ ${Math.abs(amount).toLocaleString()}đ từ tài khoản của bạn!`, 'warning');
+                }
+                
+                render();
+            } else {
+                alert('❌ ' + result.message);
+            }
+        }
+
+        // ===== ADMIN: SEND SERVER NOTIFICATION =====
+        function showSendNotificationForm() {
+            const message = prompt('Nhập thông báo gửi toàn server:\n\n(Thông báo sẽ hiển thị cho tất cả người chơi)');
+            if (!message || message.trim() === '') {
+                return;
+            }
+
+            const typeStr = prompt('Chọn loại thông báo:\n\n1 = Thông tin (xanh)\n2 = Thành công (xanh lá)\n3 = Cảnh báo (vàng)\n4 = Lỗi (đỏ)\n\nNhập số (1-4):');
+            
+            const typeMap = {
+                '1': 'info',
+                '2': 'success',
+                '3': 'warning',
+                '4': 'error'
+            };
+
+            const type = typeMap[typeStr] || 'info';
+
+            DB.addNotification(message.trim(), type);
+            
+            alert('✅ Đã gửi thông báo toàn server!');
+            
+            // Cập nhật notification cho chính admin
+            checkNotifications();
+            render();
+        }
+
         // ==================== SUPPORT FUNCTIONS ====================
         function toggleSupport() {
             gameState.showSupport = !gameState.showSupport;
@@ -1362,6 +1550,40 @@
                     </div>
                 `;
             }
+        }
+
+        function renderNotificationBanner() {
+            if (!gameState.currentNotification) return '';
+
+            const notif = gameState.currentNotification;
+            const bgColor = {
+                'info': 'from-blue-600 to-cyan-600',
+                'success': 'from-green-600 to-emerald-600',
+                'warning': 'from-yellow-600 to-orange-600',
+                'error': 'from-red-600 to-pink-600'
+            }[notif.type] || 'from-purple-600 to-pink-600';
+
+            return `
+                <div class="notification-banner slide-down">
+                    <div class="max-w-7xl mx-auto px-4 py-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <div class="flex items-center gap-3 flex-1">
+                                <div class="text-3xl">📢</div>
+                                <div class="flex-1">
+                                    <div class="font-bold text-lg">THÔNG BÁO TỪ ADMIN</div>
+                                    <div class="text-sm">${notif.message}</div>
+                                </div>
+                            </div>
+                            <button
+                                onclick="dismissCurrentNotification()"
+                                class="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-bold text-sm whitespace-nowrap"
+                            >
+                                ✕ Đóng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function renderGameView() {
@@ -1678,7 +1900,7 @@
                             <div class="text-center mb-4">
                                 <div class="text-5xl md:text-6xl mb-2">🔥</div>
                                 <h3 class="text-xl md:text-2xl font-bold text-red-300">BOSS NGÀY</h3>
-                                <p class="text-sm text-orange-300 mt-2">Phần thưởng x5 Vàng!</p>
+                                <p class="text-sm text-orange-300 mt-2">Phần thưởng x4 Vàng!</p>
                             </div>
                             <div class="bg-black/30 rounded-lg p-3 mb-4">
                                 <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.dailyBosses}/2</span></p>
@@ -1700,7 +1922,7 @@
                             <div class="text-center mb-4">
                                 <div class="text-5xl md:text-6xl mb-2">⚡</div>
                                 <h3 class="text-xl md:text-2xl font-bold text-purple-300">BOSS TUẦN</h3>
-                                <p class="text-sm text-pink-300 mt-2">Phần thưởng x10 Vàng!</p>
+                                <p class="text-sm text-pink-300 mt-2">Phần thưởng x7 Vàng!</p>
                             </div>
                             <div class="bg-black/30 rounded-lg p-3 mb-4">
                                 <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.weeklyBosses}/3</span></p>
@@ -2154,6 +2376,27 @@
                         </div>
                     </div>
 
+                    <!-- Admin Tools -->
+                    <div class="grid md:grid-cols-2 gap-6 mb-6">
+                        <button
+                            onclick="showModifyGoldForm()"
+                            class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-6 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                        >
+                            <div class="text-5xl mb-2">💰</div>
+                            <h3 class="text-xl font-bold">CỘNG/TRỪ TIỀN</h3>
+                            <p class="text-sm text-green-300 mt-2">Quản lý vàng của user</p>
+                        </button>
+
+                        <button
+                            onclick="showSendNotificationForm()"
+                            class="bg-gradient-to-br from-blue-900/50 to-cyan-900/50 rounded-xl p-6 border-2 border-blue-500/30 hover:border-blue-400 hover:scale-105 transition-all"
+                        >
+                            <div class="text-5xl mb-2">📢</div>
+                            <h3 class="text-xl font-bold">THÔNG BÁO SERVER</h3>
+                            <p class="text-sm text-blue-300 mt-2">Gửi thông báo toàn hệ thống</p>
+                        </button>
+                    </div>
+
                     <!-- Admin Management -->
                     <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-xl p-6 border-2 border-red-500/30 mb-6">
                         <h3 class="text-xl font-bold mb-4">👑 QUẢN LÝ ADMIN</h3>
@@ -2333,9 +2576,10 @@
             const isAdmin = DB.isAdmin(gameState.currentUsername);
 
             root.innerHTML = `
+                ${renderNotificationBanner()}
                 <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
                     <!-- Header -->
-                    <div class="bg-gradient-to-r from-purple-900/80 to-blue-900/80 backdrop-blur-lg border-b-2 border-purple-500/30 shadow-xl">
+                    <div class="bg-gradient-to-r from-purple-900/80 to-blue-900/80 backdrop-blur-lg border-b-2 border-purple-500/30 shadow-xl ${gameState.currentNotification ? 'mt-16' : ''}">
                         <div class="max-w-7xl mx-auto px-3 md:px-4 py-3 md:py-4">
                             <div class="flex items-center justify-between flex-wrap gap-3 md:gap-4">
                                 <div>
@@ -2475,6 +2719,9 @@
                     gameState.currentUsername = currentUser;
                     gameState.player = playerData;
                     
+                    // Kiểm tra thông báo
+                    checkNotifications();
+                    
                     setTimeout(() => {
                         if (!gameState.isInBattle && gameState.currentView === 'game') {
                             startBattle();
@@ -2509,6 +2756,13 @@
                     render();
                 }
             }, 60000);
+
+            // Kiểm tra thông báo mỗi 30 giây
+            setInterval(() => {
+                if (gameState.isLoggedIn && !gameState.currentNotification) {
+                    checkNotifications();
+                }
+            }, 30000);
 
             render();
         }
