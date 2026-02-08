@@ -134,6 +134,9 @@
                 armor: null,
                 pet: null,
                 inventory: [],
+                ownedWeapons: [], // Danh sách vũ khí đã mua
+                ownedArmors: [],  // Danh sách giáp đã mua
+                ownedPets: [],    // Danh sách pet đã mua
                 dailyBosses: 2,
                 weeklyBosses: 3,
                 lastDailyReset: Date.now(),
@@ -420,7 +423,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 500);
+                }, 1500);
             }
         }
 
@@ -465,20 +468,83 @@
                 return;
             }
 
+            // Kiểm tra đã sở hữu chưa
+            let owned = false;
+            if (type === 'weapon') {
+                owned = gameState.player.ownedWeapons.some(w => w.name === item.name);
+            } else if (type === 'armor') {
+                owned = gameState.player.ownedArmors.some(a => a.name === item.name);
+            } else if (type === 'pet') {
+                owned = gameState.player.ownedPets.some(p => p.name === item.name);
+            }
+
+            if (owned) {
+                addLog('⚠️ Bạn đã sở hữu vật phẩm này!', 'error');
+                return;
+            }
+
+            // Trừ vàng và thêm vào inventory
             gameState.player.gold -= item.price;
             
             if (type === 'weapon') {
-                gameState.player.weapon = item;
+                gameState.player.ownedWeapons.push(item);
+                gameState.player.weapon = item; // Tự động trang bị
             } else if (type === 'armor') {
+                gameState.player.ownedArmors.push(item);
+                const oldMaxHp = gameState.player.maxHp;
                 gameState.player.armor = item;
                 gameState.player.maxHp += item.hp;
                 gameState.player.hp = gameState.player.maxHp;
             } else if (type === 'pet') {
-                gameState.player.pet = item;
+                gameState.player.ownedPets.push(item);
+                gameState.player.pet = item; // Tự động trang bị
             }
 
             saveGame();
-            addLog(`✅ Đã mua ${item.icon} ${item.name}!`, 'success');
+            addLog(`✅ Đã mua và trang bị ${item.icon} ${item.name}!`, 'success');
+        }
+
+        // Hàm để chuyển đổi trang bị đã sở hữu
+        function equipItem(item, type) {
+            if (type === 'weapon') {
+                if (gameState.player.weapon?.name === item.name) {
+                    addLog('⚠️ Đang sử dụng vũ khí này rồi!', 'error');
+                    return;
+                }
+                gameState.player.weapon = item;
+                addLog(`✅ Đã trang bị ${item.icon} ${item.name}!`, 'success');
+            } else if (type === 'armor') {
+                if (gameState.player.armor?.name === item.name) {
+                    addLog('⚠️ Đang sử dụng giáp này rồi!', 'error');
+                    return;
+                }
+                
+                // Trừ HP bonus của giáp cũ
+                if (gameState.player.armor) {
+                    gameState.player.maxHp -= gameState.player.armor.hp;
+                }
+                
+                // Thêm HP bonus của giáp mới
+                gameState.player.armor = item;
+                gameState.player.maxHp += item.hp;
+                
+                // Đảm bảo HP không vượt quá max
+                if (gameState.player.hp > gameState.player.maxHp) {
+                    gameState.player.hp = gameState.player.maxHp;
+                }
+                
+                addLog(`✅ Đã trang bị ${item.icon} ${item.name}!`, 'success');
+            } else if (type === 'pet') {
+                if (gameState.player.pet?.name === item.name) {
+                    addLog('⚠️ Đang sử dụng pet này rồi!', 'error');
+                    return;
+                }
+                gameState.player.pet = item;
+                addLog(`✅ Đã triệu hồi ${item.icon} ${item.name}!`, 'success');
+            }
+            
+            saveGame();
+            render();
         }
 
         // ==================== UPGRADE FUNCTIONS ====================
@@ -931,26 +997,40 @@
                             ⚔️ SHOP VŨ KHÍ
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
-                            ${weaponShop.map(weapon => `
-                                <div class="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-3 md:p-4 border-2 border-orange-500/30 hover:border-orange-400 transition-all hover:scale-105">
+                            ${weaponShop.map(weapon => {
+                                const isEquipped = gameState.player.weapon?.name === weapon.name;
+                                const isOwned = gameState.player.ownedWeapons.some(w => w.name === weapon.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-orange-500/30'
+                                } hover:border-orange-400 transition-all hover:scale-105">
                                     <div class="text-center">
                                         <div class="text-3xl md:text-4xl mb-2">${weapon.icon}</div>
                                         <h3 class="font-bold text-sm md:text-base">${weapon.name}</h3>
                                         <p class="text-orange-300 text-xs md:text-sm">+${weapon.atk} ATK</p>
-                                        <button
-                                            onclick="buyItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon'); render();"
-                                            ${gameState.player.weapon?.name === weapon.name ? 'disabled' : ''}
-                                            class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm ${
-                                                gameState.player.weapon?.name === weapon.name
-                                                    ? 'bg-gray-600 cursor-not-allowed'
-                                                    : 'bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700'
-                                            }"
-                                        >
-                                            ${gameState.player.weapon?.name === weapon.name ? '✓ Đang dùng' : `💰 ${weapon.price}đ`}
-                                        </button>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs md:text-sm">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Trang bị
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700"
+                                            >
+                                                💰 ${weapon.price}đ
+                                            </button>
+                                        `}
                                     </div>
                                 </div>
-                            `).join('')}
+                            `}).join('')}
                         </div>
                     </div>
 
@@ -960,27 +1040,41 @@
                             🛡️ SHOP GIÁP
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${armorShop.map(armor => `
-                                <div class="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-3 md:p-4 border-2 border-blue-500/30 hover:border-blue-400 transition-all hover:scale-105">
+                            ${armorShop.map(armor => {
+                                const isEquipped = gameState.player.armor?.name === armor.name;
+                                const isOwned = gameState.player.ownedArmors.some(a => a.name === armor.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-blue-500/30'
+                                } hover:border-blue-400 transition-all hover:scale-105">
                                     <div class="text-center">
                                         <div class="text-3xl md:text-4xl mb-2">${armor.icon}</div>
                                         <h3 class="font-bold text-sm">${armor.name}</h3>
                                         <p class="text-blue-300 text-xs">+${armor.def} DEF</p>
                                         <p class="text-red-300 text-xs">+${armor.hp} HP</p>
-                                        <button
-                                            onclick="buyItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor'); render();"
-                                            ${gameState.player.armor?.name === armor.name ? 'disabled' : ''}
-                                            class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm ${
-                                                gameState.player.armor?.name === armor.name
-                                                    ? 'bg-gray-600 cursor-not-allowed'
-                                                    : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
-                                            }"
-                                        >
-                                            ${gameState.player.armor?.name === armor.name ? '✓ Đang dùng' : `💰 ${armor.price}đ`}
-                                        </button>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs md:text-sm">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Trang bị
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                                            >
+                                                💰 ${armor.price}đ
+                                            </button>
+                                        `}
                                     </div>
                                 </div>
-                            `).join('')}
+                            `}).join('')}
                         </div>
                     </div>
 
@@ -990,27 +1084,51 @@
                             🐾 SHOP PET
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${petShop.map(pet => `
-                                <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-3 md:p-4 border-2 border-green-500/30 hover:border-green-400 transition-all hover:scale-105">
+                            ${petShop.map(pet => {
+                                const isEquipped = gameState.player.pet?.name === pet.name;
+                                const isOwned = gameState.player.ownedPets.some(p => p.name === pet.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-green-500/30'
+                                } hover:border-green-400 transition-all hover:scale-105">
                                     <div class="text-center">
                                         <div class="text-3xl md:text-4xl mb-2">${pet.icon}</div>
                                         <h3 class="font-bold text-sm">${pet.name}</h3>
                                         <p class="text-green-300 text-xs">+${pet.atkBonus}% ATK</p>
-                                        <button
-                                            onclick="buyItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet'); render();"
-                                            ${gameState.player.pet?.name === pet.name ? 'disabled' : ''}
-                                            class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm ${
-                                                gameState.player.pet?.name === pet.name
-                                                    ? 'bg-gray-600 cursor-not-allowed'
-                                                    : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
-                                            }"
-                                        >
-                                            ${gameState.player.pet?.name === pet.name ? '✓ Đang dùng' : `💰 ${pet.price}đ`}
-                                        </button>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs md:text-sm">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Triệu hồi
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                                            >
+                                                💰 ${pet.price}đ
+                                            </button>
+                                        `}
                                     </div>
                                 </div>
-                            `).join('')}
+                            `}).join('')}
                         </div>
+                    </div>
+                    
+                    <div class="bg-blue-900/30 border-2 border-blue-500/50 rounded-xl p-4">
+                        <h3 class="font-bold text-center mb-2">💡 Hướng Dẫn:</h3>
+                        <ul class="text-sm text-blue-200 space-y-1">
+                            <li>• Mua một lần, sử dụng mãi mãi!</li>
+                            <li>• Vật phẩm đã mua có thể chuyển đổi tự do</li>
+                            <li>• Viền xanh = Đang sử dụng</li>
+                            <li>• Nút "Trang bị" = Đã sở hữu, click để chuyển đổi</li>
+                        </ul>
                     </div>
                 </div>
             `;
@@ -1626,6 +1744,28 @@
             if (savedState && savedState.name) {
                 gameState.player = savedState;
                 gameState.gameStarted = true;
+                
+                // ✅ Đảm bảo backward compatibility với save cũ
+                if (!gameState.player.ownedWeapons) {
+                    gameState.player.ownedWeapons = [];
+                    // Nếu đang có weapon, thêm vào owned
+                    if (gameState.player.weapon) {
+                        gameState.player.ownedWeapons.push(gameState.player.weapon);
+                    }
+                }
+                if (!gameState.player.ownedArmors) {
+                    gameState.player.ownedArmors = [];
+                    if (gameState.player.armor) {
+                        gameState.player.ownedArmors.push(gameState.player.armor);
+                    }
+                }
+                if (!gameState.player.ownedPets) {
+                    gameState.player.ownedPets = [];
+                    if (gameState.player.pet) {
+                        gameState.player.ownedPets.push(gameState.player.pet);
+                    }
+                }
+                saveGame(); // Lưu lại để cập nhật format mới
             }
 
             const savedHistory = localStorage.getItem('rpgWithdrawHistory');
