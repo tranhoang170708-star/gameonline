@@ -3,1119 +3,363 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔️ GAME ONLINE - RPG Phiêu Lưu [FULL VERSION]</title>
-    
+    <title>⚔️ RPG ONLINE - JSON DATABASE SYSTEM</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
-        
         * { font-family: 'Roboto', sans-serif; }
-        body { margin: 0; padding: 0; overflow-x: hidden; }
-
-        @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
-        .animate-ping { animation: ping 0.6s cubic-bezier(0, 0, 0.2, 1); }
-        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-        .animate-bounce { animation: bounce 1s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes slideIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-        .slide-in { animation: slideIn 0.3s ease-out; }
-        @keyframes slideDown { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
-        .slide-down { animation: slideDown 0.5s ease-out; }
-
+        body { margin: 0; padding: 0; overflow-x: hidden; background-color: #0f172a; color: white; }
+        .btn { transition: all 0.2s; }
+        .btn:active { transform: scale(0.95); }
+        .glass { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); }
-        ::-webkit-scrollbar-thumb { background: rgba(147, 51, 234, 0.5); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(147, 51, 234, 0.8); }
-
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
-        .notification-banner {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-            background: linear-gradient(135deg, rgba(236, 72, 153, 0.95), rgba(139, 92, 246, 0.95));
-            border-bottom: 3px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
-
-    <input type="file" id="backupFile" style="display: none" accept=".json" onchange="DB.importBackupData(this)">
+    
+    <input type="file" id="importFile" style="display: none" accept=".json" onchange="DB.processImport(this)">
 
     <script>
-        // ==================== DATABASE STRUCTURE ====================
-        class GameDatabase {
+        // ==================== DATABASE CORE (JSON SYSTEM) ====================
+        class JSONDatabase {
             constructor() {
-                this.USERS_KEY = 'rpg_users_db';
-                this.MARKET_KEY = 'rpg_market_db';
-                this.WITHDRAW_KEY = 'rpg_withdraw_db';
-                this.CURRENT_USER_KEY = 'rpg_current_user';
-                this.ADMINS_KEY = 'rpg_admins_list';
-                this.NOTIFICATIONS_KEY = 'rpg_notifications';
+                this.DB_KEY = 'rpg_full_database_v2'; 
+                this.CURRENT_USER_KEY = 'rpg_current_session';
                 this.MASTER_ADMIN = 'Quyet170708';
                 
-                this.initializeAdmins();
-            }
-
-            // ===== BACKUP & RESTORE SYSTEMS (NEW) =====
-            exportBackupData() {
-                try {
-                    const backupData = {
-                        users: localStorage.getItem(this.USERS_KEY),
-                        market: localStorage.getItem(this.MARKET_KEY),
-                        withdraw: localStorage.getItem(this.WITHDRAW_KEY),
-                        admins: localStorage.getItem(this.ADMINS_KEY),
-                        notifications: localStorage.getItem(this.NOTIFICATIONS_KEY),
-                        version: "1.0",
-                        timestamp: new Date().toLocaleString('vi-VN')
-                    };
-
-                    const dataStr = JSON.stringify(backupData, null, 2);
-                    const blob = new Blob([dataStr], { type: "application/json" });
-                    const url = URL.createObjectURL(blob);
-                    
-                    const a = document.createElement('a');
-                    a.href = url;
-                    const date = new Date().toISOString().slice(0,10);
-                    a.download = `RPG_Backup_${date}.json`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    
-                    alert('✅ Đã tải file backup về máy! Hãy lưu giữ cẩn thận.');
-                } catch (e) {
-                    console.error(e);
-                    alert('❌ Lỗi khi tạo backup!');
+                // Khởi tạo DB nếu chưa có
+                if (!localStorage.getItem(this.DB_KEY)) {
+                    this.resetDatabase();
                 }
             }
 
-            triggerImport() {
-                document.getElementById('backupFile').click();
+            // --- QUẢN LÝ DỮ LIỆU CỐT LÕI ---
+            getDB() {
+                try {
+                    return JSON.parse(localStorage.getItem(this.DB_KEY));
+                } catch (e) {
+                    return this.resetDatabase();
+                }
             }
 
-            importBackupData(input) {
+            saveDB(data) {
+                localStorage.setItem(this.DB_KEY, JSON.stringify(data));
+            }
+
+            resetDatabase() {
+                const initData = {
+                    users: {},
+                    market: [],
+                    withdraws: [],
+                    admins: [this.MASTER_ADMIN],
+                    notifications: []
+                };
+                this.saveDB(initData);
+                return initData;
+            }
+
+            // --- XUẤT/NHẬP FILE JSON (TÍNH NĂNG USER YÊU CẦU) ---
+            exportDatabase() {
+                const data = this.getDB();
+                const dataStr = JSON.stringify(data, null, 2);
+                const blob = new Blob([dataStr], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                const date = new Date().toISOString().slice(0,19).replace(/:/g,"-");
+                a.download = `RPG_DATA_${date}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                return true;
+            }
+
+            triggerImport() {
+                document.getElementById('importFile').click();
+            }
+
+            processImport(input) {
                 const file = input.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
-                        const data = JSON.parse(e.target.result);
+                        const newData = JSON.parse(e.target.result);
                         
-                        if (confirm(`Tìm thấy bản backup ngày: ${data.timestamp}\nBạn có chắc chắn muốn khôi phục? Dữ liệu hiện tại sẽ bị thay thế.`)) {
-                            if(data.users) localStorage.setItem(this.USERS_KEY, data.users);
-                            if(data.market) localStorage.setItem(this.MARKET_KEY, data.market);
-                            if(data.withdraw) localStorage.setItem(this.WITHDRAW_KEY, data.withdraw);
-                            if(data.admins) localStorage.setItem(this.ADMINS_KEY, data.admins);
-                            if(data.notifications) localStorage.setItem(this.NOTIFICATIONS_KEY, data.notifications);
-                            
-                            alert('✅ Khôi phục dữ liệu thành công! Trang sẽ tải lại.');
+                        // Validate cấu trúc file
+                        if (!newData.users || !newData.admins) {
+                            alert('❌ File lỗi! Không đúng định dạng Game.');
+                            return;
+                        }
+
+                        if (confirm('⚠️ CẢNH BÁO: Hành động này sẽ GHI ĐÈ toàn bộ dữ liệu hiện tại bằng dữ liệu trong file.\n\nBạn có chắc chắn không?')) {
+                            this.saveDB(newData);
+                            alert('✅ Đã cập nhật dữ liệu thành công! Trang sẽ tải lại.');
                             location.reload();
                         }
                     } catch (err) {
-                        console.error(err);
-                        alert('❌ File backup không hợp lệ hoặc bị lỗi!');
+                        alert('❌ File không hợp lệ!');
                     }
                 };
                 reader.readAsText(file);
-                // Reset input value to allow selecting same file again
-                input.value = '';
+                input.value = ''; // Reset input
             }
 
-            // ===== INITIALIZE ADMINS =====
-            initializeAdmins() {
-                const admins = this.getAllAdmins();
-                if (!admins.includes(this.MASTER_ADMIN)) {
-                    admins.push(this.MASTER_ADMIN);
-                    this.saveAdmins(admins);
-                }
-            }
-
-            // ===== NOTIFICATIONS MANAGEMENT =====
-            getAllNotifications() {
-                try {
-                    const notifs = localStorage.getItem(this.NOTIFICATIONS_KEY);
-                    return notifs ? JSON.parse(notifs) : [];
-                } catch (e) { return []; }
-            }
-
-            saveNotifications(notifications) {
-                localStorage.setItem(this.NOTIFICATIONS_KEY, JSON.stringify(notifications));
-            }
-
-            addNotification(message, type = 'info') {
-                const notifications = this.getAllNotifications();
-                const newNotif = { id: Date.now(), message, type, createdAt: Date.now(), dismissed: false };
-                notifications.unshift(newNotif);
-                if (notifications.length > 50) notifications.splice(50);
-                this.saveNotifications(notifications);
-                return newNotif;
-            }
-
-            getActiveNotifications() {
-                const notifications = this.getAllNotifications();
-                const now = Date.now();
-                const dayMs = 24 * 60 * 60 * 1000;
-                return notifications.filter(n => !n.dismissed && (now - n.createdAt) < dayMs);
-            }
-
-            dismissNotification(notifId) {
-                const notifications = this.getAllNotifications();
-                const notif = notifications.find(n => n.id === notifId);
-                if (notif) {
-                    notif.dismissed = true;
-                    this.saveNotifications(notifications);
-                    return true;
-                }
-                return false;
-            }
-
-            // ===== ADMIN MANAGEMENT =====
-            getAllAdmins() {
-                try {
-                    const admins = localStorage.getItem(this.ADMINS_KEY);
-                    return admins ? JSON.parse(admins) : [this.MASTER_ADMIN];
-                } catch (e) { return [this.MASTER_ADMIN]; }
-            }
-
-            saveAdmins(adminList) {
-                localStorage.setItem(this.ADMINS_KEY, JSON.stringify(adminList));
-            }
-
-            isAdmin(username) { return this.getAllAdmins().includes(username); }
-            isMasterAdmin(username) { return username === this.MASTER_ADMIN; }
-
-            addAdmin(username) {
-                if (this.userExists(username)) {
-                    const admins = this.getAllAdmins();
-                    if (!admins.includes(username)) {
-                        admins.push(username);
-                        this.saveAdmins(admins);
-                        return { success: true, message: `Đã thêm ${username} vào danh sách Admin!` };
-                    }
-                    return { success: false, message: 'User này đã là Admin rồi!' };
-                }
-                return { success: false, message: 'User không tồn tại!' };
-            }
-
-            removeAdmin(username) {
-                if (username === this.MASTER_ADMIN) return { success: false, message: 'Không thể gỡ Master Admin!' };
-                const admins = this.getAllAdmins();
-                const newAdmins = admins.filter(a => a !== username);
-                if (newAdmins.length < admins.length) {
-                    this.saveAdmins(newAdmins);
-                    return { success: true, message: `Đã gỡ ${username} khỏi Admin!` };
-                }
-                return { success: false, message: 'User này không phải Admin!' };
-            }
-
-            // ===== USER DATABASE =====
-            getAllUsers() {
-                try {
-                    const users = localStorage.getItem(this.USERS_KEY);
-                    return users ? JSON.parse(users) : {};
-                } catch (e) { return {}; }
-            }
-
-            saveAllUsers(users) {
-                localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
-                return true;
-            }
-
-            userExists(username) {
-                const users = this.getAllUsers();
-                return users.hasOwnProperty(username);
-            }
-
+            // --- USER MANAGEMENT ---
             createUser(username, password) {
-                if (this.userExists(username)) return { success: false, message: 'Username đã tồn tại!' };
+                const db = this.getDB();
+                if (db.users[username]) return { success: false, message: 'Tên đã tồn tại!' };
 
-                const users = this.getAllUsers();
-                users[username] = {
+                db.users[username] = {
                     password: password,
-                    playerData: {
-                        name: username,
-                        hp: 100, maxHp: 100, atk: 2, def: 0, crit: 5, gold: 0, level: 1, exp: 0,
-                        currentStage: 1, totalMonstersKilled: 0,
-                        weapon: null, armor: null, pet: null,
-                        inventory: [], ownedWeapons: [], ownedArmors: [], ownedPets: [],
-                        dailyBosses: 2, weeklyBosses: 3,
-                        lastDailyReset: Date.now(), lastWeeklyReset: Date.now(),
-                    },
-                    createdAt: Date.now()
+                    name: username,
+                    gold: 0,
+                    hp: 100, maxHp: 100, atk: 10, def: 0,
+                    level: 1, exp: 0,
+                    items: [],
+                    lastLogin: Date.now()
                 };
-
-                this.saveAllUsers(users);
+                
+                this.saveDB(db);
                 return { success: true, message: 'Tạo tài khoản thành công!' };
             }
 
-            loginUser(username, password) {
-                const users = this.getAllUsers();
-                if (!users[username]) return { success: false, message: 'Username không tồn tại!' };
-                if (users[username].password !== password) return { success: false, message: 'Sai mật khẩu!' };
+            login(username, password) {
+                const db = this.getDB();
+                if (!db.users[username]) return { success: false, message: 'User không tồn tại!' };
+                if (db.users[username].password !== password) return { success: false, message: 'Sai mật khẩu!' };
 
                 localStorage.setItem(this.CURRENT_USER_KEY, username);
-                return { success: true, message: 'Đăng nhập thành công!', userData: users[username].playerData };
+                return { success: true, user: db.users[username] };
             }
 
-            getCurrentUser() { return localStorage.getItem(this.CURRENT_USER_KEY); }
-            logoutUser() { localStorage.removeItem(this.CURRENT_USER_KEY); }
+            getCurrentUser() {
+                const username = localStorage.getItem(this.CURRENT_USER_KEY);
+                const db = this.getDB();
+                if (username && db.users[username]) return db.users[username];
+                return null;
+            }
 
-            savePlayerData(username, playerData) {
-                const users = this.getAllUsers();
-                if (users[username]) {
-                    users[username].playerData = playerData;
-                    this.saveAllUsers(users);
-                    return true;
+            logout() {
+                localStorage.removeItem(this.CURRENT_USER_KEY);
+            }
+
+            updateUser(username, newData) {
+                const db = this.getDB();
+                if (db.users[username]) {
+                    db.users[username] = { ...db.users[username], ...newData };
+                    this.saveDB(db);
                 }
-                return false;
             }
 
-            getPlayerData(username) {
-                const users = this.getAllUsers();
-                return users[username] ? users[username].playerData : null;
+            // --- ADMIN FEATURES ---
+            isAdmin(username) {
+                const db = this.getDB();
+                return db.admins.includes(username);
             }
 
-            modifyUserGold(username, amount) {
-                const users = this.getAllUsers();
-                if (!users[username]) return { success: false, message: `User "${username}" không tồn tại!` };
+            // ĐÂY LÀ HÀM QUAN TRỌNG ĐỂ ADMIN CỘNG TIỀN
+            adminAddGold(targetUsername, amount) {
+                const db = this.getDB();
                 
-                users[username].playerData.gold = Math.max(0, users[username].playerData.gold + amount);
-                this.saveAllUsers(users);
-                return { success: true, gold: users[username].playerData.gold };
-            }
+                // Trim để xóa khoảng trắng thừa
+                const cleanName = targetUsername.trim();
 
-            // ===== MARKET DATABASE =====
-            getAllMarketListings() {
-                try {
-                    const market = localStorage.getItem(this.MARKET_KEY);
-                    return market ? JSON.parse(market) : [];
-                } catch (e) { return []; }
-            }
-
-            saveMarketListings(listings) {
-                localStorage.setItem(this.MARKET_KEY, JSON.stringify(listings));
-            }
-
-            addMarketListing(seller, item, type, price) {
-                const listings = this.getAllMarketListings();
-                const newListing = { id: Date.now(), seller, item, type, price, listedAt: Date.now() };
-                listings.push(newListing);
-                this.saveMarketListings(listings);
-                return newListing;
-            }
-
-            removeMarketListing(listingId) {
-                let listings = this.getAllMarketListings();
-                const listing = listings.find(l => l.id === listingId);
-                listings = listings.filter(l => l.id !== listingId);
-                this.saveMarketListings(listings);
-                return listing;
-            }
-
-            getMyListings(username) { return this.getAllMarketListings().filter(l => l.seller === username); }
-            getOthersListings(username) { return this.getAllMarketListings().filter(l => l.seller !== username); }
-
-            // ===== WITHDRAW DATABASE =====
-            getAllWithdrawRequests() {
-                try {
-                    const requests = localStorage.getItem(this.WITHDRAW_KEY);
-                    return requests ? JSON.parse(requests) : [];
-                } catch (e) { return []; }
-            }
-
-            saveWithdrawRequests(requests) {
-                localStorage.setItem(this.WITHDRAW_KEY, JSON.stringify(requests));
-            }
-
-            addWithdrawRequest(username, method, amount, details) {
-                const requests = this.getAllWithdrawRequests();
-                const newRequest = {
-                    id: Date.now(), username, method, amount, details,
-                    status: 'pending', date: new Date().toLocaleString('vi-VN'), createdAt: Date.now()
-                };
-                if (method === 'card') newRequest.cardCode = this.generateCardCode();
-                requests.push(newRequest);
-                this.saveWithdrawRequests(requests);
-                return newRequest;
-            }
-
-            updateWithdrawStatus(requestId, status) {
-                const requests = this.getAllWithdrawRequests();
-                const request = requests.find(r => r.id === requestId);
-                if (request) {
-                    request.status = status;
-                    this.saveWithdrawRequests(requests);
-                    return true;
+                if (!db.users[cleanName]) {
+                    // Debug: Liệt kê danh sách user hiện có để Admin biết
+                    const existingUsers = Object.keys(db.users).join(", ");
+                    return { success: false, message: `❌ User "${cleanName}" không tìm thấy!\n\nDanh sách User đang có trong file này:\n${existingUsers}` };
                 }
-                return false;
-            }
 
-            deleteWithdrawRequest(requestId) {
-                let requests = this.getAllWithdrawRequests();
-                requests = requests.filter(r => r.id !== requestId);
-                this.saveWithdrawRequests(requests);
-                return true;
-            }
-
-            getUserWithdrawRequests(username) {
-                return this.getAllWithdrawRequests().filter(r => r.username === username);
-            }
-
-            generateCardCode() {
-                const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                let code = '';
-                for (let i = 0; i < 12; i++) code += chars[Math.floor(Math.random() * chars.length)];
-                return code;
+                db.users[cleanName].gold += parseInt(amount);
+                this.saveDB(db);
+                return { success: true, message: `✅ Đã cộng ${amount} vàng cho ${cleanName}.\nSố dư mới: ${db.users[cleanName].gold}`, newBalance: db.users[cleanName].gold };
             }
         }
 
-        const DB = new GameDatabase();
-
-        // ==================== GAME STATE & DATA ====================
+        const DB = new JSONDatabase();
         let gameState = {
-            isLoggedIn: false, currentUsername: null, authView: 'login', authError: '',
-            player: null, currentView: 'game', battleLog: [], monster: null, isInBattle: false,
-            canAttack: true, autoFight: true,
-            adBoosts: { hp: { active: false, endTime: 0 }, atk: { active: false, endTime: 0 }, def: { active: false, endTime: 0 } },
-            adsWatched: 0, marketView: 'browse', selectedItemToSell: null, sellPrice: '', showSupport: false, currentNotification: null
+            view: 'login', // login, register, game, admin
+            user: null
         };
 
-        const weaponShop = [
-            { name: 'Kiếm Gỗ', atk: 20, price: 200, icon: '🪵' },
-            { name: 'Kiếm Đá', atk: 35, price: 500, icon: '🪨' },
-            { name: 'Kiếm Sắt', atk: 50, price: 1000, icon: '⚔️' },
-            { name: 'Kiếm Vàng', atk: 75, price: 2000, icon: '💛' },
-            { name: 'Kiếm Kim Cương', atk: 125, price: 3000, icon: '💎' },
-            { name: 'Kiếm Cầu Vồng', atk: 180, price: 4500, icon: '🌈' },
-            { name: 'Kiếm Thánh', atk: 300, price: 7000, icon: '✨' },
-        ];
-
-        const armorShop = [
-            { name: 'Giáp Vải', def: 3, hp: 50, price: 500, icon: '👕' },
-            { name: 'Giáp Đồng', def: 7, hp: 75, price: 1000, icon: '🥉' },
-            { name: 'Giáp Sắt', def: 10, hp: 100, price: 1500, icon: '🛡️' },
-            { name: 'Giáp Kim Cương', def: 15, hp: 150, price: 3000, icon: '💠' },
-            { name: 'Giáp Thánh', def: 30, hp: 300, price: 5000, icon: '👑' },
-        ];
-
-        const petShop = [
-            { name: 'Gà Con', atkBonus: 5, price: 500, icon: '🐔' },
-            { name: 'Chó Con', atkBonus: 8, price: 1000, icon: '🐕' },
-            { name: 'Sói Xám', atkBonus: 13, price: 1500, icon: '🐺' },
-            { name: 'Voi Ma Mút', atkBonus: 20, price: 2300, icon: '🐘' },
-            { name: 'Rồng Thần', atkBonus: 30, price: 3500, icon: '🐉' },
-        ];
-
-        // ==================== AUTH FUNCTIONS ====================
-        function handleRegister() {
-            const username = document.getElementById('registerUsername').value.trim();
-            const password = document.getElementById('registerPassword').value;
-
-            if (username.length < 3) { gameState.authError = 'Username phải có ít nhất 3 ký tự!'; render(); return; }
-            if (password.length < 5) { gameState.authError = 'Password phải có ít nhất 5 ký tự!'; render(); return; }
-
-            const result = DB.createUser(username, password);
-            if (result.success) {
-                gameState.authError = '';
-                gameState.authView = 'login';
-                addLog('✅ ' + result.message, 'success');
-                render();
-            } else {
-                gameState.authError = result.message;
-                render();
-            }
-        }
-
+        // ==================== LOGIC FUNCTIONS ====================
         function handleLogin() {
-            const username = document.getElementById('loginUsername').value.trim();
-            const password = document.getElementById('loginPassword').value;
-
-            const result = DB.loginUser(username, password);
-            if (result.success) {
-                gameState.isLoggedIn = true;
-                gameState.currentUsername = username;
-                gameState.player = result.userData;
-                gameState.authError = '';
-                checkNotifications();
-                setTimeout(() => { if (!gameState.isInBattle && gameState.currentView === 'game') startBattle(); }, 500);
+            const u = document.getElementById('loginUser').value.trim();
+            const p = document.getElementById('loginPass').value;
+            const res = DB.login(u, p);
+            if (res.success) {
+                gameState.user = res.user;
+                gameState.view = 'game';
                 render();
             } else {
-                gameState.authError = result.message;
+                alert(res.message);
+            }
+        }
+
+        function handleRegister() {
+            const u = document.getElementById('regUser').value.trim();
+            const p = document.getElementById('regPass').value;
+            if(!u || !p) return alert('Vui lòng nhập đủ thông tin');
+            const res = DB.createUser(u, p);
+            alert(res.message);
+            if(res.success) {
+                gameState.view = 'login';
                 render();
             }
         }
 
-        function handleLogout() {
-            if (confirm('Bạn có chắc muốn đăng xuất?')) {
-                saveGame();
-                DB.logoutUser();
-                gameState.isLoggedIn = false;
-                gameState.currentUsername = null;
-                gameState.player = null;
-                gameState.authError = '';
-                gameState.authView = 'login';
-                render();
-            }
-        }
-
-        // ==================== CORE GAME LOGIC ====================
-        function checkNotifications() {
-            const activeNotifs = DB.getActiveNotifications();
-            if (activeNotifs.length > 0 && !gameState.currentNotification) {
-                gameState.currentNotification = activeNotifs[0];
-                render();
-            }
-        }
-
-        function dismissCurrentNotification() {
-            if (gameState.currentNotification) {
-                DB.dismissNotification(gameState.currentNotification.id);
-                gameState.currentNotification = null;
-                checkNotifications();
-                render();
-            }
-        }
-
-        function saveGame() {
-            if (gameState.currentUsername && gameState.player) {
-                DB.savePlayerData(gameState.currentUsername, gameState.player);
-            }
-        }
-
-        function getTotalStats() {
-            let totalAtk = gameState.player.atk;
-            let totalDef = gameState.player.def;
-            let totalHp = gameState.player.maxHp;
-            let totalCrit = gameState.player.crit;
-
-            if (gameState.player.weapon) totalAtk += gameState.player.weapon.atk;
-            if (gameState.player.armor) { totalDef += gameState.player.armor.def; totalHp += gameState.player.armor.hp; }
-            if (gameState.player.pet) { totalAtk += Math.floor(totalAtk * (gameState.player.pet.atkBonus / 100)); }
-
-            const now = Date.now();
-            if (gameState.adBoosts.hp.active && now < gameState.adBoosts.hp.endTime) totalHp += 100;
-            if (gameState.adBoosts.atk.active && now < gameState.adBoosts.atk.endTime) totalAtk += 75;
-            if (gameState.adBoosts.def.active && now < gameState.adBoosts.def.endTime) totalDef += 10;
-
-            return { totalAtk, totalDef, totalHp, totalCrit };
-        }
-
-        function generateMonster(stage, isBoss = false, bossType = 'normal') {
-            const baseHp = 30 + stage * 15;
-            const baseAtk = 1 + stage * 0.5;
-            let hp = baseHp, atk = baseAtk;
-            let goldReward = Math.floor((10 + stage * 5) * 0.6);
-            let expReward = Math.floor((20 + stage * 10) * 0.7);
-            let name = `Quái Vật Lv.${stage}`, icon = '👾';
-
-            if (isBoss) {
-                if (bossType === 'stage') {
-                    hp = baseHp * 1.3; atk = baseAtk * 1.2;
-                    goldReward = Math.floor(goldReward * 1.8); expReward = Math.floor(expReward * 1.8);
-                    name = `Boss Ải ${Math.floor(stage / 10) + 1}`; icon = '👹';
-                } else if (bossType === 'daily') {
-                    hp = baseHp * 3; atk = baseAtk * 2;
-                    goldReward = Math.floor(goldReward * 4); expReward = Math.floor(expReward * 2.5);
-                    name = `Boss Ngày`; icon = '🔥';
-                } else if (bossType === 'weekly') {
-                    hp = baseHp * 5; atk = baseAtk * 3;
-                    goldReward = Math.floor(goldReward * 7); expReward = Math.floor(expReward * 4);
-                    name = `Boss Tuần`; icon = '⚡';
-                }
-            }
-            return { name, icon, hp: Math.floor(hp), maxHp: Math.floor(hp), atk: Math.floor(atk), goldReward, expReward, stage, isBoss, bossType };
-        }
-
-        function addLog(message, type = 'info') {
-            gameState.battleLog.push({ message, type, time: Date.now() });
-            if (gameState.battleLog.length > 10) gameState.battleLog = gameState.battleLog.slice(-10);
-            render();
-        }
-
-        function startBattle(bossType = null) {
-            let newMonster;
-            if (bossType === 'daily') {
-                if (gameState.player.dailyBosses <= 0) { addLog('⚠️ Hết lượt đánh Boss Ngày!', 'error'); return; }
-                newMonster = generateMonster(gameState.player.currentStage, true, 'daily');
-            } else if (bossType === 'weekly') {
-                if (gameState.player.weeklyBosses <= 0) { addLog('⚠️ Hết lượt đánh Boss Tuần!', 'error'); return; }
-                newMonster = generateMonster(gameState.player.currentStage, true, 'weekly');
-            } else {
-                const isStageBoss = gameState.player.totalMonstersKilled > 0 && gameState.player.totalMonstersKilled % 10 === 0;
-                newMonster = generateMonster(gameState.player.currentStage, isStageBoss, isStageBoss ? 'stage' : null);
-            }
-
-            gameState.monster = newMonster;
-            gameState.isInBattle = true;
-            gameState.canAttack = true;
-            gameState.battleLog = [];
-            addLog(`⚔️ Chiến đấu với ${newMonster.icon} ${newMonster.name}!`, 'info');
-        }
-
-        function playerAttack(e) {
-            if (!gameState.canAttack || !gameState.monster || !gameState.isInBattle) return;
-
-            const stats = getTotalStats();
-            const isCrit = Math.random() * 100 < stats.totalCrit;
-            let damage = stats.totalAtk;
-            if (isCrit) damage *= 2;
-
-            gameState.monster.hp = Math.max(0, gameState.monster.hp - damage);
-            addLog(`💥 Gây ${damage} sát thương${isCrit ? ' (CHÍ MẠNG!)' : ''}`, 'success');
-
-            gameState.canAttack = false;
-            setTimeout(() => { gameState.canAttack = true; }, 200);
-
-            if (gameState.monster.hp <= 0) {
-                handleVictory(gameState.monster);
-            } else {
-                setTimeout(() => monsterAttack(), 500);
-            }
-        }
-
-        function monsterAttack() {
-            if (!gameState.monster || !gameState.isInBattle) return;
-            const stats = getTotalStats();
-            const damage = Math.max(1, gameState.monster.atk - stats.totalDef);
-            gameState.player.hp = Math.max(0, gameState.player.hp - damage);
-            addLog(`🔴 ${gameState.monster.name} gây ${damage} sát thương!`, 'error');
-
-            if (gameState.player.hp <= 0) {
-                handleDefeat();
-            } else {
-                render();
-            }
-        }
-
-        function handleVictory(defeatedMonster) {
-            const newGold = gameState.player.gold + defeatedMonster.goldReward;
-            const newExp = gameState.player.exp + defeatedMonster.expReward;
-            const expToLevel = gameState.player.level * 100;
+        function handleAdminAddGold() {
+            const u = document.getElementById('adminTargetUser').value;
+            const a = document.getElementById('adminAmount').value;
+            if (!u || !a) return alert('Nhập thiếu thông tin!');
             
-            let newLevel = gameState.player.level, remainingExp = newExp, newAtk = gameState.player.atk, newMaxHp = gameState.player.maxHp;
-
-            while (remainingExp >= expToLevel) {
-                remainingExp -= expToLevel;
-                newLevel++;
-                newAtk += 2;
-                newMaxHp += 10;
-            }
-
-            gameState.player.gold = newGold;
-            gameState.player.exp = remainingExp;
-            gameState.player.level = newLevel;
-            gameState.player.atk = newAtk;
-            gameState.player.maxHp = newMaxHp;
-            gameState.player.hp = gameState.player.maxHp;
-
-            if (defeatedMonster.bossType === 'daily') gameState.player.dailyBosses--;
-            else if (defeatedMonster.bossType === 'weekly') gameState.player.weeklyBosses--;
-            else if (!defeatedMonster.isBoss || defeatedMonster.bossType === 'stage') {
-                gameState.player.currentStage++;
-                gameState.player.totalMonstersKilled++;
-            }
-
-            saveGame();
-            addLog(`🎉 Chiến thắng! +${defeatedMonster.goldReward}💰 +${defeatedMonster.expReward}⭐`, 'success');
-            if (newLevel > gameState.player.level) addLog(`🆙 Level Up! Lv.${newLevel}`, 'success');
-
-            gameState.isInBattle = false;
-            gameState.monster = null;
-
-            if (gameState.autoFight && gameState.currentView === 'game') {
-                setTimeout(() => { if (gameState.currentView === 'game' && !gameState.isInBattle) startBattle(); }, 1500);
-            }
-        }
-
-        function handleDefeat() {
-            addLog('💀 Bạn đã thua! -50% vàng', 'error');
-            gameState.player.gold = Math.floor(gameState.player.gold * 0.5);
-            gameState.player.hp = gameState.player.maxHp;
-            saveGame();
-            gameState.isInBattle = false;
-            gameState.monster = null;
-            if (gameState.autoFight && gameState.currentView === 'game') {
-                setTimeout(() => { if (gameState.currentView === 'game' && !gameState.isInBattle) startBattle(); }, 2000);
-            }
-        }
-
-        function toggleAutoFight() {
-            gameState.autoFight = !gameState.autoFight;
-            render();
-            if (gameState.autoFight && !gameState.isInBattle && gameState.currentView === 'game') {
-                setTimeout(() => { if (!gameState.isInBattle && gameState.currentView === 'game') startBattle(); }, 500);
-            }
-        }
-
-        // ==================== ITEMS & SHOP ====================
-        function buyItem(item, type) {
-            if (gameState.player.gold < item.price) { addLog('⚠️ Không đủ vàng!', 'error'); return; }
-            let owned = false;
-            if (type === 'weapon') owned = gameState.player.ownedWeapons.some(w => w.name === item.name);
-            else if (type === 'armor') owned = gameState.player.ownedArmors.some(a => a.name === item.name);
-            else if (type === 'pet') owned = gameState.player.ownedPets.some(p => p.name === item.name);
-
-            if (owned) { addLog('⚠️ Đã sở hữu!', 'error'); return; }
-
-            gameState.player.gold -= item.price;
-            if (type === 'weapon') { gameState.player.ownedWeapons.push(item); gameState.player.weapon = item; }
-            else if (type === 'armor') { 
-                gameState.player.ownedArmors.push(item); gameState.player.armor = item; 
-                gameState.player.maxHp += item.hp; gameState.player.hp = gameState.player.maxHp;
-            }
-            else if (type === 'pet') { gameState.player.ownedPets.push(item); gameState.player.pet = item; }
-
-            saveGame();
-            addLog(`✅ Mua thành công ${item.name}!`, 'success');
-        }
-
-        function equipItem(item, type) {
-            if (type === 'weapon') gameState.player.weapon = item;
-            else if (type === 'armor') {
-                if (gameState.player.armor) gameState.player.maxHp -= gameState.player.armor.hp;
-                gameState.player.armor = item;
-                gameState.player.maxHp += item.hp;
-                if (gameState.player.hp > gameState.player.maxHp) gameState.player.hp = gameState.player.maxHp;
-            } else if (type === 'pet') gameState.player.pet = item;
-            
-            saveGame();
-            addLog(`✅ Đã trang bị ${item.name}!`, 'success');
-            render();
-        }
-
-        // ==================== MARKET LOGIC ====================
-        function canSellItem(item, type) {
-            if (type === 'weapon' && gameState.player.weapon?.name === item.name) return false;
-            if (type === 'armor' && gameState.player.armor?.name === item.name) return false;
-            if (type === 'pet' && gameState.player.pet?.name === item.name) return false;
-            return true;
-        }
-
-        function selectItemToSell(item, type) {
-            if (!canSellItem(item, type)) { alert('Không thể bán đồ đang trang bị!'); return; }
-            gameState.selectedItemToSell = { item, type };
-            gameState.marketView = 'sell';
-            render();
-        }
-
-        function listItemForSale() {
-            const price = parseInt(gameState.sellPrice);
-            if (!price || price <= 0 || !gameState.selectedItemToSell) return;
-
-            const { item, type } = gameState.selectedItemToSell;
-            if (type === 'weapon') gameState.player.ownedWeapons = gameState.player.ownedWeapons.filter(w => w.name !== item.name);
-            else if (type === 'armor') gameState.player.ownedArmors = gameState.player.ownedArmors.filter(a => a.name !== item.name);
-            else if (type === 'pet') gameState.player.ownedPets = gameState.player.ownedPets.filter(p => p.name !== item.name);
-
-            DB.addMarketListing(gameState.currentUsername, item, type, price);
-            saveGame();
-            gameState.selectedItemToSell = null; gameState.sellPrice = ''; gameState.marketView = 'browse';
-            addLog(`✅ Đã đăng bán ${item.name} giá ${price}đ!`, 'success');
-            render();
-        }
-
-        function buyFromMarket(listing) {
-            if (gameState.player.gold < listing.price) { alert('Không đủ vàng!'); return; }
-            gameState.player.gold -= listing.price;
-            const { item, type } = listing;
-            
-            if (type === 'weapon') gameState.player.ownedWeapons.push(item);
-            else if (type === 'armor') gameState.player.ownedArmors.push(item);
-            else if (type === 'pet') gameState.player.ownedPets.push(item);
-
-            const sellerData = DB.getPlayerData(listing.seller);
-            if (sellerData) { sellerData.gold += listing.price; DB.savePlayerData(listing.seller, sellerData); }
-            DB.removeMarketListing(listing.id);
-
-            saveGame();
-            addLog(`✅ Đã mua ${item.name} từ ${listing.seller}!`, 'success');
-            render();
-        }
-
-        function removeListing(listingId) {
-            const listing = DB.removeMarketListing(listingId);
-            if (listing) {
-                const { item, type } = listing;
-                if (type === 'weapon') gameState.player.ownedWeapons.push(item);
-                else if (type === 'armor') gameState.player.ownedArmors.push(item);
-                else if (type === 'pet') gameState.player.ownedPets.push(item);
-                saveGame();
-                addLog(`✅ Đã gỡ ${item.name} khỏi chợ!`, 'success');
+            const res = DB.adminAddGold(u, a);
+            alert(res.message);
+            // Nếu admin cộng tiền cho chính mình, cập nhật UI ngay
+            if (res.success && u === gameState.user.name) {
+                gameState.user.gold = res.newBalance;
                 render();
             }
         }
 
-        // ==================== OTHER LOGIC ====================
-        function upgradeStats(stat) {
-            const costs = {
-                atk: 100 + gameState.player.atk * 50,
-                hp: 150 + gameState.player.maxHp * 2,
-                crit: 200 + gameState.player.crit * 100
-            };
-            if (gameState.player.gold < costs[stat]) { addLog('⚠️ Không đủ vàng!', 'error'); return; }
-            gameState.player.gold -= costs[stat];
-            
-            if (stat === 'atk') gameState.player.atk += 5;
-            else if (stat === 'hp') { gameState.player.maxHp += 20; gameState.player.hp = gameState.player.maxHp; }
-            else if (stat === 'crit') gameState.player.crit += 2;
-
-            saveGame();
-            addLog(`⬆️ Đã nâng cấp ${stat.toUpperCase()}!`, 'success');
-        }
-
-        function calculateAdReward() {
-            return Math.floor(50 * Math.max(1, gameState.player.currentStage / 10) * (Math.random() * 0.5 + 0.75) * 0.7);
-        }
-
-        function loadAdsterraScript(callback) {
-            const script = document.createElement('script');
-            script.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
-            script.async = true;
-            script.onload = callback;
-            script.onerror = () => { console.log('Script failed'); if (callback) callback(); };
-            document.body.appendChild(script);
-        }
-
-        function watchAd(type) {
-            addLog('📺 Đang tải quảng cáo...', 'info');
-            loadAdsterraScript(() => {
-                setTimeout(() => {
-                    gameState.adsWatched++;
-                    if (['hp','atk','def'].includes(type)) {
-                        gameState.adBoosts[type] = { active: true, endTime: Date.now() + 600000 };
-                        addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
-                    } else if (type === 'coin1') {
-                        const bonus = calculateAdReward();
-                        gameState.player.gold += bonus;
-                        addLog(`💰 +${bonus} Vàng!`, 'success');
-                    } else if (type === 'coin2') {
-                        const bonus = calculateAdReward() * 2;
-                        gameState.player.gold += bonus;
-                        addLog(`💎 +${bonus} Vàng!`, 'success');
-                    }
-                    saveGame();
-                    render();
-                }, 2000);
-            });
-        }
-
-        function submitWithdraw(method) {
-            let formData = {}, amount = 0;
-            if (method === 'bank') {
-                formData = {
-                    bankName: document.getElementById('bankName').value,
-                    account: document.getElementById('bankAccount').value,
-                    owner: document.getElementById('bankOwner').value,
-                    amount: document.getElementById('bankAmount').value
-                };
-                if (!formData.account || !formData.amount) return alert('Thiếu thông tin!');
-                amount = parseInt(formData.amount);
-            } else if (method === 'momo') {
-                formData = {
-                    phone: document.getElementById('momoPhone').value,
-                    owner: document.getElementById('momoOwner').value,
-                    amount: document.getElementById('momoAmount').value
-                };
-                if (!formData.phone || !formData.amount) return alert('Thiếu thông tin!');
-                amount = parseInt(formData.amount);
-            } else if (method === 'card') {
-                amount = parseInt(document.getElementById('cardAmount').value);
-                formData = { amount };
-            }
-
-            DB.addWithdrawRequest(gameState.currentUsername, method, amount, formData);
-            alert(`✅ Đã gửi yêu cầu rút ${amount.toLocaleString()}đ!`);
-            gameState.currentView = 'withdraw-history';
-            document.getElementById('withdrawForm').classList.add('hidden');
-            render();
-        }
-
-        function showWithdrawForm(method) {
-            const formContainer = document.getElementById('withdrawForm');
-            formContainer.className = 'bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30 slide-in mt-4';
-            let formHTML = '';
-
-            if (method === 'bank') {
-                formHTML = `
-                    <div class="space-y-4">
-                        <select id="bankName" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white"><option>Vietcombank</option><option>MB Bank</option><option>Techcombank</option></select>
-                        <input type="text" id="bankAccount" placeholder="Số tài khoản" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                        <input type="text" id="bankOwner" placeholder="Tên chủ thẻ" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                        <input type="number" id="bankAmount" placeholder="Số tiền (Min 20k)" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                        <button onclick="submitWithdraw('bank')" class="w-full py-4 bg-green-600 rounded-xl font-bold">✅ RÚT TIỀN</button>
-                    </div>`;
-            } else if (method === 'momo') {
-                formHTML = `
-                    <div class="space-y-4">
-                        <input type="tel" id="momoPhone" placeholder="SĐT MoMo" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                        <input type="text" id="momoOwner" placeholder="Tên người nhận" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                        <input type="number" id="momoAmount" placeholder="Số tiền (Min 20k)" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                        <button onclick="submitWithdraw('momo')" class="w-full py-4 bg-green-600 rounded-xl font-bold">✅ RÚT TIỀN</button>
-                    </div>`;
-            } else if (method === 'card') {
-                formHTML = `
-                    <div class="space-y-4">
-                        <select id="cardAmount" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                            <option value="10000">10,000đ</option><option value="20000">20,000đ</option><option value="50000">50,000đ</option>
-                        </select>
-                        <button onclick="submitWithdraw('card')" class="w-full py-4 bg-green-600 rounded-xl font-bold">✅ RÚT THẺ</button>
-                    </div>`;
-            }
-            formContainer.innerHTML = `<h3 class="text-xl font-bold mb-4 text-center text-white">THÔNG TIN RÚT</h3>${formHTML}<button onclick="document.getElementById('withdrawForm').classList.add('hidden')" class="w-full mt-2 py-3 bg-gray-600 rounded-xl font-bold">❌ HỦY</button>`;
-        }
-
-        // ==================== ADMIN LOGIC ====================
-        function approveWithdraw(requestId) { if (confirm('Duyệt?')) { DB.updateWithdrawStatus(requestId, 'approved'); render(); } }
-        function rejectWithdraw(requestId) { if (confirm('Từ chối?')) { DB.updateWithdrawStatus(requestId, 'rejected'); render(); } }
-        function deleteWithdraw(requestId) { if (confirm('Xóa?')) { DB.deleteWithdrawRequest(requestId); render(); } }
-        function addAdminUser() { const u = prompt('Username:'); if (u) { alert(DB.addAdmin(u.trim()).message); render(); } }
-        function removeAdminUser(u) { if (confirm(`Xóa admin ${u}?`)) { alert(DB.removeAdmin(u).message); render(); } }
-
-        function showModifyGoldForm() {
-            const users = DB.getAllUsers();
-            const u = prompt('Nhập username:');
-            if (!u || !users[u]) return alert('User không tồn tại!');
-            const amt = prompt(`User: ${u}\nVàng hiện tại: ${users[u].playerData.gold}\nNhập số tiền (+/-):`);
-            if (amt) {
-                const res = DB.modifyUserGold(u, parseInt(amt));
-                alert(res.success ? `✅ Số dư mới: ${res.gold}` : '❌ Lỗi');
-                if (u === gameState.currentUsername) gameState.player = DB.getPlayerData(u);
-                render();
-            }
-        }
-
-        function showSendNotificationForm() {
-            const msg = prompt('Nội dung thông báo:');
-            if (msg) { DB.addNotification(msg); alert('✅ Đã gửi!'); render(); }
-        }
-
-        function toggleSupport() { gameState.showSupport = !gameState.showSupport; render(); }
-
-        // ==================== RENDERING ====================
-        function renderAuthScreen() {
-            const isLogin = gameState.authView === 'login';
-            return `
-                <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4 flex items-center justify-center">
-                    <div class="max-w-md w-full bg-black/50 backdrop-blur-lg rounded-3xl p-8 border border-purple-500/30 slide-in">
-                        <h1 class="text-4xl font-bold mb-8 text-center bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">RPG ONLINE</h1>
-                        <div class="space-y-4">
-                            <input type="text" id="${isLogin ? 'login' : 'register'}Username" placeholder="Username" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                            <input type="password" id="${isLogin ? 'login' : 'register'}Password" placeholder="Password" class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500 rounded-xl text-white">
-                            ${gameState.authError ? `<p class="text-red-400 text-sm text-center">${gameState.authError}</p>` : ''}
-                            <button onclick="${isLogin ? 'handleLogin()' : 'handleRegister()'}" class="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 rounded-xl font-bold text-lg hover:scale-105 transition-all">
-                                ${isLogin ? '🎮 ĐĂNG NHẬP' : '✅ ĐĂNG KÝ'}
-                            </button>
-                            <div class="flex justify-between text-sm mt-4">
-                                <button onclick="gameState.authView='${isLogin ? 'register' : 'login'}'; gameState.authError=''; render();" class="text-purple-300 underline">
-                                    ${isLogin ? 'Đăng ký mới' : 'Quay lại đăng nhập'}
-                                </button>
-                                <button onclick="DB.triggerImport()" class="text-yellow-400 font-bold hover:text-yellow-300 flex items-center gap-1">
-                                    📂 KHÔI PHỤC DỮ LIỆU
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderGameView() {
-            const stats = getTotalStats();
-            return `
-                <div class="grid lg:grid-cols-2 gap-6">
-                    <div class="bg-black/40 rounded-2xl p-6 border-2 border-purple-500/30">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-2xl font-bold text-yellow-400">CHIẾN TRƯỜNG</h2>
-                            <button onclick="toggleAutoFight()" class="px-3 py-1 rounded-lg text-sm font-bold ${gameState.autoFight ? 'bg-green-600' : 'bg-gray-600'}">
-                                ${gameState.autoFight ? '🔄 Auto ON' : '⏸️ Auto OFF'}
-                            </button>
-                        </div>
-                        ${!gameState.isInBattle ? `
-                            <div class="text-center py-8">
-                                <div class="text-6xl mb-4 animate-bounce">🏰</div>
-                                <p class="mb-4">Ải ${gameState.player.currentStage}</p>
-                                ${gameState.autoFight ? '<p class="text-green-400 animate-pulse">Đang tìm quái...</p>' : `<button onclick="startBattle(); render();" class="px-8 py-3 bg-red-600 rounded-xl font-bold">CHIẾN ĐẤU</button>`}
-                            </div>
-                        ` : `
-                            <div onclick="playerAttack()" class="text-center cursor-pointer select-none">
-                                <div class="text-7xl mb-4 animate-bounce">${gameState.monster.icon}</div>
-                                <h3 class="text-xl font-bold text-red-400">${gameState.monster.name}</h3>
-                                <div class="w-full bg-gray-700 h-4 rounded-full mt-2 overflow-hidden">
-                                    <div class="bg-red-500 h-full transition-all" style="width: ${(gameState.monster.hp/gameState.monster.maxHp)*100}%"></div>
-                                </div>
-                                <p class="mt-1">${gameState.monster.hp}/${gameState.monster.maxHp}</p>
-                            </div>
-                        `}
-                    </div>
-                    <div class="space-y-4">
-                        <div class="bg-black/40 rounded-2xl p-4 border border-purple-500/30 h-48 overflow-y-auto">
-                            ${gameState.battleLog.map(log => `<div class="${log.type==='error'?'text-red-400':log.type==='success'?'text-green-400':'text-blue-300'} text-sm mb-1">${log.message}</div>`).join('')}
-                        </div>
-                        <div class="bg-black/40 rounded-2xl p-4 border border-purple-500/30">
-                            <h3 class="font-bold mb-2">Trang Bị</h3>
-                            <div class="grid grid-cols-3 gap-2 text-sm text-center">
-                                <div class="bg-white/5 p-2 rounded">⚔️ ${gameState.player.weapon?.name || '---'}</div>
-                                <div class="bg-white/5 p-2 rounded">🛡️ ${gameState.player.armor?.name || '---'}</div>
-                                <div class="bg-white/5 p-2 rounded">🐾 ${gameState.player.pet?.name || '---'}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-        }
-
-        // Simplistic render functions for brevity (Shop, Upgrade, etc. structure remains mostly same but condensed)
-        function renderUpgradeView() {
-            return `<div class="grid md:grid-cols-3 gap-4 text-center">
-                ${[['atk','⚔️','Sức Mạnh'],['hp','❤️','Máu'],['crit','⚡','Chí Mạng']].map(s => `
-                    <div class="bg-black/40 p-6 rounded-xl border border-purple-500/30">
-                        <div class="text-4xl mb-2">${s[1]}</div>
-                        <button onclick="upgradeStats('${s[0]}')" class="w-full py-2 bg-blue-600 rounded-lg font-bold">Nâng ${s[2]}</button>
-                    </div>
-                `).join('')}
-            </div>`;
-        }
-
-        function renderShopView() {
-            const renderSection = (title, items, type) => `
-                <div class="mb-8"><h3 class="text-2xl font-bold mb-4 text-yellow-400">${title}</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    ${items.map(i => `
-                        <div class="bg-black/40 p-4 rounded-xl border border-purple-500/30 text-center hover:scale-105 transition-all">
-                            <div class="text-3xl mb-2">${i.icon}</div>
-                            <div class="font-bold text-sm">${i.name}</div>
-                            <div class="text-yellow-400 text-xs">${i.price}đ</div>
-                            <button onclick="${gameState.player.ownedWeapons.some(x=>x.name===i.name)||gameState.player.ownedArmors.some(x=>x.name===i.name)||gameState.player.ownedPets.some(x=>x.name===i.name) ? `equipItem(${JSON.stringify(i).replace(/"/g,'&quot;')}, '${type}')` : `buyItem(${JSON.stringify(i).replace(/"/g,'&quot;')}, '${type}')`}" 
-                                class="mt-2 w-full py-1 ${gameState.player.ownedWeapons.some(x=>x.name===i.name)||gameState.player.ownedArmors.some(x=>x.name===i.name)||gameState.player.ownedPets.some(x=>x.name===i.name) ? 'bg-blue-600' : 'bg-green-600'} rounded text-xs font-bold">
-                                ${gameState.player.ownedWeapons.some(x=>x.name===i.name)||gameState.player.ownedArmors.some(x=>x.name===i.name)||gameState.player.ownedPets.some(x=>x.name===i.name) ? 'Trang bị' : 'Mua'}
-                            </button>
-                        </div>
-                    `).join('')}
-                </div></div>`;
-            return `<div>${renderSection('Vũ Khí', weaponShop, 'weapon')}${renderSection('Giáp', armorShop, 'armor')}${renderSection('Thú Cưng', petShop, 'pet')}</div>`;
-        }
-
-        function renderMarketView() {
-            if (gameState.marketView === 'sell') {
-                return `<div class="max-w-4xl mx-auto"><h2 class="text-2xl font-bold mb-4 text-center">BÁN ĐỒ</h2>
-                    <button onclick="gameState.marketView='browse';render()" class="mb-4 px-4 py-2 bg-gray-600 rounded">← Quay lại</button>
-                    ${gameState.selectedItemToSell?`<div class="bg-black/40 p-4 mb-4 rounded border border-purple-500"><div class="text-center font-bold text-xl mb-2">${gameState.selectedItemToSell.item.name}</div><input type="number" oninput="gameState.sellPrice=this.value" placeholder="Giá bán" class="w-full p-2 bg-black rounded text-white border border-gray-600 mb-2"><button onclick="listItemForSale()" class="w-full py-2 bg-green-600 rounded font-bold">Đăng bán</button></div>`:''}
-                    <div class="grid grid-cols-4 gap-2">
-                        ${[...gameState.player.ownedWeapons.filter(x=>x.name!==gameState.player.weapon?.name), ...gameState.player.ownedArmors.filter(x=>x.name!==gameState.player.armor?.name), ...gameState.player.ownedPets.filter(x=>x.name!==gameState.player.pet?.name)].map(i=>`
-                            <div onclick="selectItemToSell(${JSON.stringify(i).replace(/"/g,'&quot;')}, '${weaponShop.some(x=>x.name===i.name)?'weapon':armorShop.some(x=>x.name===i.name)?'armor':'pet'}')" class="bg-black/40 p-2 rounded cursor-pointer border hover:border-yellow-400 text-center">
-                                <div class="text-2xl">${i.icon}</div><div class="text-xs">${i.name}</div>
-                            </div>
-                        `).join('')}
-                    </div></div>`;
-            }
-            return `<div class="max-w-6xl mx-auto"><h2 class="text-2xl font-bold mb-4 text-center">CHỢ NGƯỜI CHƠI</h2>
-                <div class="grid md:grid-cols-2 gap-6">
-                    <div class="bg-black/40 p-4 rounded-xl border border-purple-500/30">
-                        <h3 class="font-bold mb-4">Đồ của tôi</h3>
-                        ${DB.getMyListings(gameState.currentUsername).map(l=>`<div class="flex justify-between items-center bg-black/30 p-2 mb-2 rounded"><span>${l.item.icon} ${l.item.name} - ${l.price}đ</span><button onclick="removeListing(${l.id})" class="text-red-400 text-xs">Gỡ</button></div>`).join('')}
-                        <button onclick="gameState.marketView='sell';render()" class="w-full mt-4 py-2 bg-purple-600 rounded font-bold">➕ ĐĂNG BÁN</button>
-                    </div>
-                    <div class="bg-black/40 p-4 rounded-xl border border-purple-500/30">
-                        <h3 class="font-bold mb-4">Đang bán</h3>
-                        <div class="h-96 overflow-y-auto">${DB.getOthersListings(gameState.currentUsername).map(l=>`<div class="flex justify-between items-center bg-black/30 p-2 mb-2 rounded"><div><div class="font-bold">${l.item.icon} ${l.item.name}</div><div class="text-xs text-gray-400">${l.seller}</div></div><button onclick="buyFromMarket(${JSON.stringify(l).replace(/"/g,'&quot;')})" class="bg-green-600 px-3 py-1 rounded text-xs font-bold">${l.price}đ</button></div>`).join('')}</div>
-                    </div>
-                </div></div>`;
-        }
-
-        function renderAdminView() {
-            const reqs = DB.getAllWithdrawRequests();
-            return `<div class="max-w-4xl mx-auto space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <button onclick="showModifyGoldForm()" class="bg-green-900/50 p-6 rounded-xl border border-green-500 text-xl font-bold">💰 QUẢN LÝ TIỀN</button>
-                    <button onclick="showSendNotificationForm()" class="bg-blue-900/50 p-6 rounded-xl border border-blue-500 text-xl font-bold">📢 GỬI THÔNG BÁO</button>
-                </div>
-                <div class="bg-black/40 p-4 rounded-xl border border-purple-500/30">
-                    <h3 class="font-bold mb-4">Yêu cầu rút tiền</h3>
-                    ${reqs.map(r => `<div class="bg-black/30 p-3 mb-2 rounded border border-gray-700 flex justify-between items-center">
-                        <div><div class="font-bold text-yellow-400">${r.amount}đ - ${r.username}</div><div class="text-xs">${r.method} - ${r.status}</div></div>
-                        ${r.status === 'pending' ? `<div><button onclick="approveWithdraw(${r.id})" class="text-green-400 mr-2">✔️</button><button onclick="rejectWithdraw(${r.id})" class="text-red-400 mr-2">❌</button><button onclick="deleteWithdraw(${r.id})" class="text-gray-400">🗑️</button></div>` : `<button onclick="deleteWithdraw(${r.id})" class="text-gray-400">🗑️</button>`}
-                    </div>`).join('')}
-                </div>
-            </div>`;
-        }
-
+        // ==================== UI RENDERING ====================
         function render() {
             const root = document.getElementById('root');
-            if (!gameState.isLoggedIn) { root.innerHTML = renderAuthScreen(); return; }
+            let html = '';
 
-            const stats = getTotalStats();
-            const isAdmin = DB.isAdmin(gameState.currentUsername);
-
-            // HEADER + CONTENT
-            let content = '';
-            if (gameState.currentView === 'game') content = renderGameView();
-            else if (gameState.currentView === 'upgrade') content = renderUpgradeView();
-            else if (gameState.currentView === 'shop') content = renderShopView();
-            else if (gameState.currentView === 'market') content = renderMarketView();
-            else if (gameState.currentView === 'boss') content = `<div class="grid grid-cols-2 gap-4 max-w-2xl mx-auto"><button onclick="startBattle('daily');render()" class="h-32 bg-red-900/50 rounded-xl font-bold text-xl border border-red-500">🔥 BOSS NGÀY (${gameState.player.dailyBosses}/2)</button><button onclick="startBattle('weekly');render()" class="h-32 bg-purple-900/50 rounded-xl font-bold text-xl border border-purple-500">⚡ BOSS TUẦN (${gameState.player.weeklyBosses}/3)</button></div>`;
-            else if (gameState.currentView === 'ads') content = `<div class="text-center"><button onclick="watchAd('coin1')" class="bg-yellow-600 px-8 py-4 rounded-xl font-bold text-xl mb-4">📺 XEM QUẢNG CÁO (+VÀNG)</button></div>`;
-            else if (gameState.currentView === 'withdraw') content = `<div class="grid grid-cols-3 gap-4 max-w-2xl mx-auto text-center">${['bank','momo','card'].map(m=>`<button onclick="showWithdrawForm('${m}')" class="bg-green-900/50 p-4 rounded-xl border border-green-500 font-bold uppercase">${m}</button>`).join('')}</div><div id="withdrawForm" class="max-w-md mx-auto"></div>`;
-            else if (gameState.currentView === 'withdraw-history') content = `<div class="max-w-2xl mx-auto bg-black/40 p-4 rounded-xl">${DB.getUserWithdrawRequests(gameState.currentUsername).map(r=>`<div class="flex justify-between p-2 border-b border-gray-700"><span>${r.method}</span><span class="text-yellow-400">${r.amount}đ</span><span class="text-xs">${r.status}</span></div>`).join('')}</div>`;
-            else if (gameState.currentView === 'admin' && isAdmin) content = renderAdminView();
-
-            root.innerHTML = `
-                ${gameState.currentNotification ? `<div class="notification-banner p-3 flex justify-between items-center text-white"><div class="font-bold">📢 ${gameState.currentNotification.message}</div><button onclick="dismissCurrentNotification()">✕</button></div>` : ''}
-                <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white pb-20">
-                    <div class="bg-purple-900/80 backdrop-blur border-b border-purple-500/30 p-4 sticky top-0 z-10 ${gameState.currentNotification ? 'mt-12' : ''}">
-                        <div class="flex justify-between items-center max-w-7xl mx-auto">
-                            <div>
-                                <h1 class="font-bold text-lg">${gameState.player.name} Lv.${gameState.player.level}</h1>
-                                <div class="text-yellow-400 font-bold">💰 ${gameState.player.gold.toLocaleString()}đ</div>
+            // --- VIEW: LOGIN ---
+            if (gameState.view === 'login') {
+                html = `
+                    <div class="min-h-screen flex items-center justify-center bg-[url('https://wallpaperaccess.com/full/156340.jpg')] bg-cover bg-center">
+                        <div class="glass p-8 rounded-2xl w-full max-w-md shadow-2xl">
+                            <h1 class="text-4xl font-black text-center mb-6 text-yellow-400 drop-shadow-md">RPG JSON</h1>
+                            <div class="space-y-4">
+                                <input id="loginUser" type="text" placeholder="Username" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white focus:outline-none focus:border-yellow-400">
+                                <input id="loginPass" type="password" placeholder="Password" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg p-3 text-white focus:outline-none focus:border-yellow-400">
+                                <button onclick="handleLogin()" class="btn w-full bg-gradient-to-r from-yellow-600 to-yellow-500 py-3 rounded-lg font-bold text-lg shadow-lg">ĐĂNG NHẬP</button>
+                                <div class="flex gap-2">
+                                    <button onclick="gameState.view='register';render()" class="flex-1 text-sm text-slate-300 hover:text-white">Đăng ký mới</button>
+                                    <button onclick="DB.triggerImport()" class="flex-1 text-sm text-green-400 hover:text-green-300 font-bold">📂 NHẬP FILE DATA</button>
+                                </div>
                             </div>
-                            <div class="flex gap-2">
-                                <button onclick="DB.exportBackupData()" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm font-bold shadow-lg border border-blue-400">💾 TẢI BACKUP</button>
-                                <button onclick="handleLogout()" class="bg-red-600 px-3 py-2 rounded text-sm font-bold">🚪</button>
+                            <div class="mt-6 text-xs text-center text-slate-400">
+                                *Tip: Nếu chơi khác máy, hãy dùng chức năng Nhập File Data
                             </div>
                         </div>
-                        <div class="flex gap-2 mt-2 text-xs text-gray-300">
-                            <span>❤️ ${gameState.player.hp}/${stats.totalHp}</span>
-                            <span>⚔️ ${stats.totalAtk}</span>
-                            <span>🛡️ ${stats.totalDef}</span>
-                        </div>
                     </div>
-
-                    <div class="bg-black/30 border-b border-purple-500/30 overflow-x-auto">
-                        <div class="flex p-2 gap-2 max-w-7xl mx-auto min-w-max">
-                            ${[['game','⚔️'],['upgrade','⬆️'],['shop','🛒'],['boss','👑'],['ads','📺'],['market','🏪'],['withdraw','💵'],['withdraw-history','📜']].map(n=>`<button onclick="gameState.currentView='${n[0]}';render()" class="px-4 py-2 rounded bg-purple-800/30 hover:bg-purple-700 font-bold text-sm whitespace-nowrap ${gameState.currentView===n[0]?'bg-pink-600':''}">${n[1]} ${n[0].toUpperCase()}</button>`).join('')}
-                            ${isAdmin ? `<button onclick="gameState.currentView='admin';render()" class="px-4 py-2 rounded bg-red-800 font-bold text-sm">👑 ADMIN</button>` : ''}
-                        </div>
-                    </div>
-
-                    <div class="max-w-7xl mx-auto p-4 animate-fade-in">${content}</div>
-                    ${gameState.showSupport ? `<div class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onclick="toggleSupport()"><div class="bg-purple-900 p-8 rounded-2xl max-w-sm text-center border border-purple-500">Support: <a href="https://t.me/NQ_CTV" class="text-blue-400 font-bold">@NQ_CTV</a><br><button onclick="toggleSupport()" class="mt-4 bg-gray-600 px-6 py-2 rounded">Close</button></div></div>` : ''}
-                    <div class="fixed bottom-4 right-4"><button onclick="toggleSupport()" class="bg-blue-600 p-3 rounded-full shadow-lg font-bold">💬</button></div>
-                </div>
-            `;
-        }
-
-        // ==================== INIT ====================
-        function init() {
-            const currentUser = DB.getCurrentUser();
-            if (currentUser) {
-                const playerData = DB.getPlayerData(currentUser);
-                if (playerData) {
-                    gameState.isLoggedIn = true;
-                    gameState.currentUsername = currentUser;
-                    gameState.player = playerData;
-                    checkNotifications();
-                    setTimeout(() => { if (!gameState.isInBattle && gameState.currentView === 'game') startBattle(); }, 500);
-                }
+                `;
             }
-            setInterval(() => { if(gameState.player) { saveGame(); } }, 60000); // Auto save every minute
-            render();
+
+            // --- VIEW: REGISTER ---
+            else if (gameState.view === 'register') {
+                html = `
+                    <div class="min-h-screen flex items-center justify-center bg-slate-900">
+                        <div class="glass p-8 rounded-2xl w-full max-w-md">
+                            <h2 class="text-2xl font-bold mb-4 text-center">ĐĂNG KÝ TÀI KHOẢN</h2>
+                            <input id="regUser" type="text" placeholder="Tên đăng nhập" class="w-full mb-3 bg-slate-800 border border-slate-600 rounded p-3">
+                            <input id="regPass" type="password" placeholder="Mật khẩu" class="w-full mb-6 bg-slate-800 border border-slate-600 rounded p-3">
+                            <button onclick="handleRegister()" class="w-full bg-green-600 py-3 rounded font-bold mb-2">TẠO TÀI KHOẢN</button>
+                            <button onclick="gameState.view='login';render()" class="w-full text-slate-400 text-sm">Quay lại</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // --- VIEW: GAME / ADMIN ---
+            else if (gameState.view === 'game') {
+                const isAdmin = DB.isAdmin(gameState.user.name);
+                
+                html = `
+                    <div class="min-h-screen bg-slate-900 pb-20">
+                        <div class="sticky top-0 z-50 glass border-b border-slate-700 p-4">
+                            <div class="max-w-4xl mx-auto flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center font-bold text-xl">
+                                        ${gameState.user.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-lg">${gameState.user.name} ${isAdmin ? '<span class="text-yellow-400 text-xs bg-yellow-400/20 px-2 py-0.5 rounded ml-1">ADMIN</span>' : ''}</div>
+                                        <div class="text-yellow-400 font-mono">💰 ${gameState.user.gold.toLocaleString()}</div>
+                                    </div>
+                                </div>
+                                <button onclick="DB.logout(); location.reload()" class="bg-red-600/80 hover:bg-red-600 px-4 py-2 rounded text-sm font-bold">THOÁT</button>
+                            </div>
+                        </div>
+
+                        <div class="max-w-4xl mx-auto p-4 space-y-6">
+                            
+                            <div class="bg-blue-900/30 border border-blue-500/50 rounded-xl p-6 relative overflow-hidden">
+                                <div class="absolute top-0 right-0 p-4 opacity-10 text-9xl">💾</div>
+                                <h3 class="text-xl font-bold text-blue-300 mb-2">QUẢN LÝ DỮ LIỆU (SAVE/LOAD)</h3>
+                                <p class="text-sm text-slate-400 mb-4">Để Admin cộng tiền, hãy tải file này xuống và gửi cho Admin. Sau khi Admin cộng xong, tải file mới lên.</p>
+                                <div class="flex gap-4">
+                                    <button onclick="DB.exportDatabase()" class="flex-1 bg-green-600 hover:bg-green-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                                        ⬇️ TẢI FILE VỀ MÁY
+                                    </button>
+                                    <button onclick="DB.triggerImport()" class="flex-1 bg-yellow-600 hover:bg-yellow-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                                        ⬆️ NẠP FILE MỚI
+                                    </button>
+                                </div>
+                            </div>
+
+                            ${isAdmin ? `
+                                <div class="bg-red-900/20 border border-red-500/50 rounded-xl p-6">
+                                    <h3 class="text-xl font-bold text-red-400 mb-4">👑 ADMIN PANEL - CỘNG TIỀN</h3>
+                                    <div class="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm text-slate-400 mb-1">Username cần cộng (Chính xác):</label>
+                                            <input id="adminTargetUser" type="text" placeholder="Nhập tên user..." class="w-full bg-slate-900 border border-red-500/50 rounded p-3 text-white">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm text-slate-400 mb-1">Số vàng:</label>
+                                            <input id="adminAmount" type="number" placeholder="VD: 10000" class="w-full bg-slate-900 border border-red-500/50 rounded p-3 text-white">
+                                        </div>
+                                    </div>
+                                    <button onclick="handleAdminAddGold()" class="w-full mt-4 bg-gradient-to-r from-red-600 to-orange-600 py-3 rounded-lg font-bold shadow-lg hover:scale-[1.02] transition-transform">
+                                        💰 THỰC HIỆN CỘNG TIỀN
+                                    </button>
+                                    <div class="mt-4 p-3 bg-black/40 rounded text-xs text-slate-300">
+                                        <p>ℹ️ <strong>Lưu ý quan trọng:</strong></p>
+                                        <p>1. Nếu User tạo nick trên máy khác, họ phải gửi file JSON cho bạn.</p>
+                                        <p>2. Bạn dùng nút "NẠP FILE MỚI" ở trên để nhập dữ liệu của họ vào.</p>
+                                        <p>3. Cộng tiền xong, bạn dùng nút "TẢI FILE VỀ MÁY" và gửi lại file đó cho họ.</p>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                                    <div class="text-slate-400 text-xs">Sức mạnh (ATK)</div>
+                                    <div class="text-2xl font-bold">⚔️ ${gameState.user.atk}</div>
+                                </div>
+                                <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                                    <div class="text-slate-400 text-xs">Máu (HP)</div>
+                                    <div class="text-2xl font-bold">❤️ ${gameState.user.hp}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            root.innerHTML = html;
         }
 
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-        else init();
+        // INIT
+        const savedUser = DB.getCurrentUser();
+        if (savedUser) {
+            gameState.user = savedUser;
+            gameState.view = 'game';
+        }
+        render();
     </script>
 </body>
 </html>
