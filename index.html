@@ -161,7 +161,7 @@
             messagingSenderId: "788942574263",
             appId: "1:788942574263:web:ef450c3d0cf72afd317332",
             measurementId: "G-7T72ZT3V8R",
-            databaseURL: "https://myrpggame-5adb9-default-rtdb.asia-southeast1.firebasedatabase.app/"
+            databaseURL: "https://myrpggame-5adb9-default-rtdb.firebaseio.com/"
         };
 
         // Initialize Firebase
@@ -605,7 +605,7 @@
         };
 
         // ==================== SHOP DATA ====================
-        const weaponShop = [
+        window.weaponShop = [
             { name: 'Kiếm Gỗ', atk: 20, price: 200, icon: '🪵' },
             { name: 'Kiếm Đá', atk: 35, price: 500, icon: '🪨' },
             { name: 'Kiếm Sắt', atk: 50, price: 1000, icon: '⚔️' },
@@ -615,7 +615,7 @@
             { name: 'Kiếm Thánh', atk: 300, price: 7000, icon: '✨' },
         ];
 
-        const armorShop = [
+        window.armorShop = [
             { name: 'Giáp Vải', def: 3, hp: 50, price: 500, icon: '👕' },
             { name: 'Giáp Đồng', def: 7, hp: 75, price: 1000, icon: '🥉' },
             { name: 'Giáp Sắt', def: 10, hp: 100, price: 1500, icon: '🛡️' },
@@ -623,7 +623,7 @@
             { name: 'Giáp Thánh', def: 30, hp: 300, price: 5000, icon: '👑' },
         ];
 
-        const petShop = [
+        window.petShop = [
             { name: 'Gà Con', atkBonus: 5, price: 500, icon: '🐔' },
             { name: 'Chó Con', atkBonus: 8, price: 1000, icon: '🐕' },
             { name: 'Sói Xám', atkBonus: 13, price: 1500, icon: '🐺' },
@@ -672,6 +672,36 @@
                 gameState.currentUsername = username;
                 gameState.player = result.userData;
                 gameState.authError = '';
+                
+                // MIGRATION: Thêm các field thiếu cho user cũ
+                let needSave = false;
+                if (!gameState.player.ownedWeapons) {
+                    gameState.player.ownedWeapons = [];
+                    needSave = true;
+                }
+                if (!gameState.player.ownedArmors) {
+                    gameState.player.ownedArmors = [];
+                    needSave = true;
+                }
+                if (!gameState.player.ownedPets) {
+                    gameState.player.ownedPets = [];
+                    needSave = true;
+                }
+                if (!gameState.player.dailyBosses) {
+                    gameState.player.dailyBosses = 2;
+                    gameState.player.lastDailyReset = Date.now();
+                    needSave = true;
+                }
+                if (!gameState.player.weeklyBosses) {
+                    gameState.player.weeklyBosses = 3;
+                    gameState.player.lastWeeklyReset = Date.now();
+                    needSave = true;
+                }
+                
+                // Lưu lại nếu có thay đổi
+                if (needSave) {
+                    await saveGame();
+                }
                 
                 // LƯU SESSION VÀO LOCALSTORAGE ĐỂ GIỮ ĐĂNG NHẬP
                 localStorage.setItem('rpg_session_user', username);
@@ -992,11 +1022,11 @@
 
             let owned = false;
             if (type === 'weapon') {
-                owned = gameState.player.ownedWeapons.some(w => w.name === item.name);
+                owned = (gameState.player.ownedWeapons || []).some(w => w.name === item.name);
             } else if (type === 'armor') {
-                owned = gameState.player.ownedArmors.some(a => a.name === item.name);
+                owned = (gameState.player.ownedArmors || []).some(a => a.name === item.name);
             } else if (type === 'pet') {
-                owned = gameState.player.ownedPets.some(p => p.name === item.name);
+                owned = (gameState.player.ownedPets || []).some(p => p.name === item.name);
             }
 
             if (owned) {
@@ -1007,14 +1037,17 @@
             gameState.player.gold -= item.price;
             
             if (type === 'weapon') {
+                if (!gameState.player.ownedWeapons) gameState.player.ownedWeapons = [];
                 gameState.player.ownedWeapons.push(item);
                 gameState.player.weapon = item;
             } else if (type === 'armor') {
+                if (!gameState.player.ownedArmors) gameState.player.ownedArmors = [];
                 gameState.player.ownedArmors.push(item);
                 gameState.player.armor = item;
                 gameState.player.maxHp += item.hp;
                 gameState.player.hp = gameState.player.maxHp;
             } else if (type === 'pet') {
+                if (!gameState.player.ownedPets) gameState.player.ownedPets = [];
                 gameState.player.ownedPets.push(item);
                 gameState.player.pet = item;
             }
@@ -1842,9 +1875,9 @@
                             ⚔️ SHOP VŨ KHÍ
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
-                            ${weaponShop.map((weapon, idx) => {
+                            ${window.weaponShop.map((weapon, idx) => {
                                 const isEquipped = gameState.player.weapon?.name === weapon.name;
-                                const isOwned = gameState.player.ownedWeapons.some(w => w.name === weapon.name);
+                                const isOwned = (gameState.player.ownedWeapons || []).some(w => w.name === weapon.name);
                                 
                                 return `
                                 <div class="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-3 md:p-4 border-2 ${
@@ -1884,9 +1917,9 @@
                             🛡️ SHOP GIÁP
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${armorShop.map((armor, idx) => {
+                            ${window.armorShop.map((armor, idx) => {
                                 const isEquipped = gameState.player.armor?.name === armor.name;
-                                const isOwned = gameState.player.ownedArmors.some(a => a.name === armor.name);
+                                const isOwned = (gameState.player.ownedArmors || []).some(a => a.name === armor.name);
                                 
                                 return `
                                 <div class="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-3 md:p-4 border-2 ${
@@ -1927,9 +1960,9 @@
                             🐾 SHOP PET
                         </h2>
                         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${petShop.map((pet, idx) => {
+                            ${window.petShop.map((pet, idx) => {
                                 const isEquipped = gameState.player.pet?.name === pet.name;
-                                const isOwned = gameState.player.ownedPets.some(p => p.name === pet.name);
+                                const isOwned = (gameState.player.ownedPets || []).some(p => p.name === pet.name);
                                 
                                 return `
                                 <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-3 md:p-4 border-2 ${
@@ -2815,6 +2848,36 @@
                     gameState.currentUsername = savedUser;
                     gameState.player = result.userData;
                     gameState.authError = '';
+                    
+                    // MIGRATION: Thêm các field thiếu cho user cũ
+                    let needSave = false;
+                    if (!gameState.player.ownedWeapons) {
+                        gameState.player.ownedWeapons = [];
+                        needSave = true;
+                    }
+                    if (!gameState.player.ownedArmors) {
+                        gameState.player.ownedArmors = [];
+                        needSave = true;
+                    }
+                    if (!gameState.player.ownedPets) {
+                        gameState.player.ownedPets = [];
+                        needSave = true;
+                    }
+                    if (!gameState.player.dailyBosses) {
+                        gameState.player.dailyBosses = 2;
+                        gameState.player.lastDailyReset = Date.now();
+                        needSave = true;
+                    }
+                    if (!gameState.player.weeklyBosses) {
+                        gameState.player.weeklyBosses = 3;
+                        gameState.player.lastWeeklyReset = Date.now();
+                        needSave = true;
+                    }
+                    
+                    // Lưu lại nếu có thay đổi
+                    if (needSave) {
+                        await saveGame();
+                    }
                     
                     // Lắng nghe thay đổi real-time từ Firebase
                     db.ref('users/' + savedUser + '/playerData').on('value', (snapshot) => {
