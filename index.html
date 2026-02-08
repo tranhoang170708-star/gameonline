@@ -1,9 +1,12 @@
-a<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔️ GAME ONLINE - RPG Phiêu Lưu</title>
+    <title>⚔️ GAME ONLINE - RPG Phiêu Lưu [FULL VERSION]</title>
+    
+    <!-- Adsterra Script -->
+    <script async src="https://pl28673158.effectivegatecpm.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js"></script>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -113,50 +116,273 @@ a<!DOCTYPE html>
     <div id="root"></div>
 
     <script>
+        // ==================== DATABASE STRUCTURE ====================
+        class GameDatabase {
+            constructor() {
+                this.USERS_KEY = 'rpg_users_db';
+                this.MARKET_KEY = 'rpg_market_db';
+                this.WITHDRAW_KEY = 'rpg_withdraw_db';
+                this.CURRENT_USER_KEY = 'rpg_current_user';
+            }
+
+            // ===== USER DATABASE =====
+            getAllUsers() {
+                try {
+                    const users = localStorage.getItem(this.USERS_KEY);
+                    return users ? JSON.parse(users) : {};
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            saveAllUsers(users) {
+                try {
+                    localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+                    return true;
+                } catch (e) {
+                    console.error('Lỗi lưu users:', e);
+                    return false;
+                }
+            }
+
+            userExists(username) {
+                const users = this.getAllUsers();
+                return users.hasOwnProperty(username);
+            }
+
+            createUser(username, password) {
+                if (this.userExists(username)) {
+                    return { success: false, message: 'Username đã tồn tại!' };
+                }
+
+                const users = this.getAllUsers();
+                users[username] = {
+                    password: password, // ⚠️ Production: Cần hash password
+                    playerData: {
+                        name: username,
+                        hp: 100,
+                        maxHp: 100,
+                        atk: 2,
+                        def: 0,
+                        crit: 5,
+                        gold: 0,
+                        level: 1,
+                        exp: 0,
+                        currentStage: 1,
+                        totalMonstersKilled: 0,
+                        weapon: null,
+                        armor: null,
+                        pet: null,
+                        inventory: [],
+                        ownedWeapons: [],
+                        ownedArmors: [],
+                        ownedPets: [],
+                        dailyBosses: 2,
+                        weeklyBosses: 3,
+                        lastDailyReset: Date.now(),
+                        lastWeeklyReset: Date.now(),
+                    },
+                    createdAt: Date.now()
+                };
+
+                this.saveAllUsers(users);
+                return { success: true, message: 'Tạo tài khoản thành công!' };
+            }
+
+            loginUser(username, password) {
+                const users = this.getAllUsers();
+                
+                if (!users[username]) {
+                    return { success: false, message: 'Username không tồn tại!' };
+                }
+
+                if (users[username].password !== password) {
+                    return { success: false, message: 'Sai mật khẩu!' };
+                }
+
+                localStorage.setItem(this.CURRENT_USER_KEY, username);
+                return { success: true, message: 'Đăng nhập thành công!', userData: users[username].playerData };
+            }
+
+            getCurrentUser() {
+                return localStorage.getItem(this.CURRENT_USER_KEY);
+            }
+
+            logoutUser() {
+                localStorage.removeItem(this.CURRENT_USER_KEY);
+            }
+
+            savePlayerData(username, playerData) {
+                const users = this.getAllUsers();
+                if (users[username]) {
+                    users[username].playerData = playerData;
+                    this.saveAllUsers(users);
+                    return true;
+                }
+                return false;
+            }
+
+            getPlayerData(username) {
+                const users = this.getAllUsers();
+                return users[username] ? users[username].playerData : null;
+            }
+
+            isAdmin(username) {
+                return username === 'admin';
+            }
+
+            // ===== MARKET DATABASE =====
+            getAllMarketListings() {
+                try {
+                    const market = localStorage.getItem(this.MARKET_KEY);
+                    return market ? JSON.parse(market) : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            saveMarketListings(listings) {
+                try {
+                    localStorage.setItem(this.MARKET_KEY, JSON.stringify(listings));
+                    return true;
+                } catch (e) {
+                    console.error('Lỗi lưu market:', e);
+                    return false;
+                }
+            }
+
+            addMarketListing(seller, item, type, price) {
+                const listings = this.getAllMarketListings();
+                const newListing = {
+                    id: Date.now(),
+                    seller: seller,
+                    item: item,
+                    type: type,
+                    price: price,
+                    listedAt: Date.now()
+                };
+                listings.push(newListing);
+                this.saveMarketListings(listings);
+                return newListing;
+            }
+
+            removeMarketListing(listingId) {
+                let listings = this.getAllMarketListings();
+                const listing = listings.find(l => l.id === listingId);
+                listings = listings.filter(l => l.id !== listingId);
+                this.saveMarketListings(listings);
+                return listing;
+            }
+
+            getMyListings(username) {
+                const listings = this.getAllMarketListings();
+                return listings.filter(l => l.seller === username);
+            }
+
+            getOthersListings(username) {
+                const listings = this.getAllMarketListings();
+                return listings.filter(l => l.seller !== username);
+            }
+
+            // ===== WITHDRAW DATABASE =====
+            getAllWithdrawRequests() {
+                try {
+                    const requests = localStorage.getItem(this.WITHDRAW_KEY);
+                    return requests ? JSON.parse(requests) : [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            saveWithdrawRequests(requests) {
+                try {
+                    localStorage.setItem(this.WITHDRAW_KEY, JSON.stringify(requests));
+                    return true;
+                } catch (e) {
+                    console.error('Lỗi lưu withdraw:', e);
+                    return false;
+                }
+            }
+
+            addWithdrawRequest(username, method, amount, details) {
+                const requests = this.getAllWithdrawRequests();
+                const newRequest = {
+                    id: Date.now(),
+                    username: username,
+                    method: method,
+                    amount: amount,
+                    details: details,
+                    status: 'pending',
+                    date: new Date().toLocaleString('vi-VN'),
+                    createdAt: Date.now()
+                };
+                
+                if (method === 'card') {
+                    newRequest.cardCode = this.generateCardCode();
+                }
+                
+                requests.push(newRequest);
+                this.saveWithdrawRequests(requests);
+                return newRequest;
+            }
+
+            updateWithdrawStatus(requestId, status) {
+                const requests = this.getAllWithdrawRequests();
+                const request = requests.find(r => r.id === requestId);
+                if (request) {
+                    request.status = status;
+                    this.saveWithdrawRequests(requests);
+                    return true;
+                }
+                return false;
+            }
+
+            deleteWithdrawRequest(requestId) {
+                let requests = this.getAllWithdrawRequests();
+                requests = requests.filter(r => r.id !== requestId);
+                this.saveWithdrawRequests(requests);
+                return true;
+            }
+
+            getUserWithdrawRequests(username) {
+                const requests = this.getAllWithdrawRequests();
+                return requests.filter(r => r.username === username);
+            }
+
+            generateCardCode() {
+                const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                let code = '';
+                for (let i = 0; i < 12; i++) {
+                    code += chars[Math.floor(Math.random() * chars.length)];
+                }
+                return code;
+            }
+        }
+
+        const DB = new GameDatabase();
+
         // ==================== GAME STATE ====================
         let gameState = {
-            gameStarted: false,
-            playerName: '',
-            nameError: '',
-            player: {
-                name: '',
-                hp: 100,
-                maxHp: 100,
-                atk: 2,
-                def: 0,
-                crit: 5,
-                gold: 0,
-                level: 1,
-                exp: 0,
-                currentStage: 1,
-                totalMonstersKilled: 0,
-                weapon: null,
-                armor: null,
-                pet: null,
-                inventory: [],
-                ownedWeapons: [], // Danh sách vũ khí đã mua
-                ownedArmors: [],  // Danh sách giáp đã mua
-                ownedPets: [],    // Danh sách pet đã mua
-                dailyBosses: 2,
-                weeklyBosses: 3,
-                lastDailyReset: Date.now(),
-                lastWeeklyReset: Date.now(),
-            },
+            isLoggedIn: false,
+            currentUsername: null,
+            authView: 'login', // 'login' or 'register'
+            authError: '',
+            player: null,
             currentView: 'game',
             battleLog: [],
             monster: null,
             isInBattle: false,
             canAttack: true,
-            autoFight: true, // TỰ ĐỘNG CHIẾN ĐẤU
+            autoFight: true,
             adBoosts: {
                 hp: { active: false, endTime: 0 },
                 atk: { active: false, endTime: 0 },
                 def: { active: false, endTime: 0 }
             },
-            marketListings: [],
-            tradeTarget: '',
-            withdrawHistory: [],
-            adsWatched: 0
+            adsWatched: 0,
+            marketView: 'browse', // 'browse' or 'sell'
+            selectedItemToSell: null,
+            sellPrice: ''
         };
 
         // ==================== SHOP DATA ====================
@@ -186,23 +412,79 @@ a<!DOCTYPE html>
             { name: 'Rồng Thần', atkBonus: 30, price: 3500, icon: '🐉' },
         ];
 
-        // ==================== SAVE/LOAD FUNCTIONS ====================
-        function loadGameState() {
-            try {
-                const saved = localStorage.getItem('rpgGameState');
-                return saved ? JSON.parse(saved) : null;
-            } catch {
-                return null;
+        // ==================== AUTH FUNCTIONS ====================
+        function handleRegister() {
+            const username = document.getElementById('registerUsername').value.trim();
+            const password = document.getElementById('registerPassword').value;
+
+            if (username.length < 3) {
+                gameState.authError = 'Username phải có ít nhất 3 ký tự!';
+                render();
+                return;
+            }
+
+            if (password.length < 5) {
+                gameState.authError = 'Password phải có ít nhất 5 ký tự!';
+                render();
+                return;
+            }
+
+            const result = DB.createUser(username, password);
+            
+            if (result.success) {
+                gameState.authError = '';
+                gameState.authView = 'login';
+                addLog('✅ ' + result.message, 'success');
+                render();
+            } else {
+                gameState.authError = result.message;
+                render();
             }
         }
 
+        function handleLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            const result = DB.loginUser(username, password);
+            
+            if (result.success) {
+                gameState.isLoggedIn = true;
+                gameState.currentUsername = username;
+                gameState.player = result.userData;
+                gameState.authError = '';
+                
+                // Auto start battle
+                setTimeout(() => {
+                    if (!gameState.isInBattle && gameState.currentView === 'game') {
+                        startBattle();
+                    }
+                }, 500);
+                
+                render();
+            } else {
+                gameState.authError = result.message;
+                render();
+            }
+        }
+
+        function handleLogout() {
+            if (confirm('Bạn có chắc muốn đăng xuất?')) {
+                saveGame();
+                DB.logoutUser();
+                gameState.isLoggedIn = false;
+                gameState.currentUsername = null;
+                gameState.player = null;
+                gameState.authError = '';
+                gameState.authView = 'login';
+                render();
+            }
+        }
+
+        // ==================== SAVE/LOAD FUNCTIONS ====================
         function saveGame() {
-            try {
-                localStorage.setItem('rpgGameState', JSON.stringify(gameState.player));
-                localStorage.setItem('rpgWithdrawHistory', JSON.stringify(gameState.withdrawHistory));
-                localStorage.setItem('rpgAutoFight', JSON.stringify(gameState.autoFight));
-            } catch (e) {
-                console.error('Không thể lưu game', e);
+            if (gameState.currentUsername && gameState.player) {
+                DB.savePlayerData(gameState.currentUsername, gameState.player);
             }
         }
 
@@ -222,7 +504,6 @@ a<!DOCTYPE html>
                 totalAtk += Math.floor(totalAtk * (gameState.player.pet.atkBonus / 100));
             }
 
-            // Ad boosts
             if (gameState.adBoosts.hp.active && Date.now() < gameState.adBoosts.hp.endTime) totalHp += 100;
             if (gameState.adBoosts.atk.active && Date.now() < gameState.adBoosts.atk.endTime) totalAtk += 75;
             if (gameState.adBoosts.def.active && Date.now() < gameState.adBoosts.def.endTime) totalDef += 10;
@@ -319,18 +600,6 @@ a<!DOCTYPE html>
             addLog(`💡 Click vào quái để tấn công!`, 'info');
         }
 
-        function showDamagePopup(damage, isCrit, x, y) {
-            const popup = document.createElement('div');
-            popup.className = 'damage-popup';
-            popup.textContent = isCrit ? `💥 ${damage}` : damage;
-            popup.style.left = x + 'px';
-            popup.style.top = y + 'px';
-            popup.style.color = isCrit ? '#ff0000' : '#ffaa00';
-            document.body.appendChild(popup);
-            
-            setTimeout(() => popup.remove(), 1000);
-        }
-
         function playerAttack(e) {
             if (!gameState.canAttack || !gameState.monster || !gameState.isInBattle) return;
 
@@ -417,7 +686,6 @@ a<!DOCTYPE html>
             gameState.isInBattle = false;
             gameState.monster = null;
 
-            // ✅ TỰ ĐỘNG SPAWN QUÁI MỚI SAU 1.5 GIÂY
             if (gameState.autoFight && gameState.currentView === 'game') {
                 setTimeout(() => {
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
@@ -435,7 +703,6 @@ a<!DOCTYPE html>
             gameState.isInBattle = false;
             gameState.monster = null;
             
-            // Tự động spawn lại sau khi thua
             if (gameState.autoFight && gameState.currentView === 'game') {
                 setTimeout(() => {
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
@@ -445,13 +712,10 @@ a<!DOCTYPE html>
             }
         }
 
-        // Toggle auto fight
         function toggleAutoFight() {
             gameState.autoFight = !gameState.autoFight;
-            saveGame();
             render();
             
-            // ✅ Nếu bật auto và không đang đánh, spawn quái ngay
             if (gameState.autoFight && !gameState.isInBattle && gameState.currentView === 'game') {
                 setTimeout(() => {
                     if (!gameState.isInBattle && gameState.currentView === 'game') {
@@ -468,7 +732,6 @@ a<!DOCTYPE html>
                 return;
             }
 
-            // Kiểm tra đã sở hữu chưa
             let owned = false;
             if (type === 'weapon') {
                 owned = gameState.player.ownedWeapons.some(w => w.name === item.name);
@@ -483,28 +746,25 @@ a<!DOCTYPE html>
                 return;
             }
 
-            // Trừ vàng và thêm vào inventory
             gameState.player.gold -= item.price;
             
             if (type === 'weapon') {
                 gameState.player.ownedWeapons.push(item);
-                gameState.player.weapon = item; // Tự động trang bị
+                gameState.player.weapon = item;
             } else if (type === 'armor') {
                 gameState.player.ownedArmors.push(item);
-                const oldMaxHp = gameState.player.maxHp;
                 gameState.player.armor = item;
                 gameState.player.maxHp += item.hp;
                 gameState.player.hp = gameState.player.maxHp;
             } else if (type === 'pet') {
                 gameState.player.ownedPets.push(item);
-                gameState.player.pet = item; // Tự động trang bị
+                gameState.player.pet = item;
             }
 
             saveGame();
             addLog(`✅ Đã mua và trang bị ${item.icon} ${item.name}!`, 'success');
         }
 
-        // Hàm để chuyển đổi trang bị đã sở hữu
         function equipItem(item, type) {
             if (type === 'weapon') {
                 if (gameState.player.weapon?.name === item.name) {
@@ -519,16 +779,13 @@ a<!DOCTYPE html>
                     return;
                 }
                 
-                // Trừ HP bonus của giáp cũ
                 if (gameState.player.armor) {
                     gameState.player.maxHp -= gameState.player.armor.hp;
                 }
                 
-                // Thêm HP bonus của giáp mới
                 gameState.player.armor = item;
                 gameState.player.maxHp += item.hp;
                 
-                // Đảm bảo HP không vượt quá max
                 if (gameState.player.hp > gameState.player.maxHp) {
                     gameState.player.hp = gameState.player.maxHp;
                 }
@@ -545,6 +802,115 @@ a<!DOCTYPE html>
             
             saveGame();
             render();
+        }
+
+        // ==================== MARKET FUNCTIONS ====================
+        function canSellItem(item, type) {
+            // Không thể bán đồ đang trang bị
+            if (type === 'weapon' && gameState.player.weapon?.name === item.name) return false;
+            if (type === 'armor' && gameState.player.armor?.name === item.name) return false;
+            if (type === 'pet' && gameState.player.pet?.name === item.name) return false;
+            return true;
+        }
+
+        function selectItemToSell(item, type) {
+            if (!canSellItem(item, type)) {
+                alert('Không thể bán đồ đang trang bị! Vui lòng tháo ra trước.');
+                return;
+            }
+            gameState.selectedItemToSell = { item, type };
+            gameState.marketView = 'sell';
+            render();
+        }
+
+        function listItemForSale() {
+            const price = parseInt(gameState.sellPrice);
+            
+            if (!price || price <= 0) {
+                alert('Vui lòng nhập giá hợp lệ!');
+                return;
+            }
+
+            if (!gameState.selectedItemToSell) {
+                alert('Vui lòng chọn vật phẩm muốn bán!');
+                return;
+            }
+
+            const { item, type } = gameState.selectedItemToSell;
+
+            // Remove from owned
+            if (type === 'weapon') {
+                gameState.player.ownedWeapons = gameState.player.ownedWeapons.filter(w => w.name !== item.name);
+            } else if (type === 'armor') {
+                gameState.player.ownedArmors = gameState.player.ownedArmors.filter(a => a.name !== item.name);
+            } else if (type === 'pet') {
+                gameState.player.ownedPets = gameState.player.ownedPets.filter(p => p.name !== item.name);
+            }
+
+            // Add to market
+            DB.addMarketListing(gameState.currentUsername, item, type, price);
+            
+            saveGame();
+            gameState.selectedItemToSell = null;
+            gameState.sellPrice = '';
+            gameState.marketView = 'browse';
+            
+            addLog(`✅ Đã đăng bán ${item.icon} ${item.name} với giá ${price.toLocaleString()}đ!`, 'success');
+            render();
+        }
+
+        function buyFromMarket(listing) {
+            if (gameState.player.gold < listing.price) {
+                alert('Không đủ vàng để mua!');
+                return;
+            }
+
+            // Deduct gold from buyer
+            gameState.player.gold -= listing.price;
+
+            // Add item to buyer's inventory
+            const { item, type } = listing;
+            if (type === 'weapon') {
+                gameState.player.ownedWeapons.push(item);
+            } else if (type === 'armor') {
+                gameState.player.ownedArmors.push(item);
+            } else if (type === 'pet') {
+                gameState.player.ownedPets.push(item);
+            }
+
+            // Transfer gold to seller
+            const sellerData = DB.getPlayerData(listing.seller);
+            if (sellerData) {
+                sellerData.gold += listing.price;
+                DB.savePlayerData(listing.seller, sellerData);
+            }
+
+            // Remove from market
+            DB.removeMarketListing(listing.id);
+
+            saveGame();
+            addLog(`✅ Đã mua ${item.icon} ${item.name} từ ${listing.seller}!`, 'success');
+            render();
+        }
+
+        function removeListing(listingId) {
+            const listing = DB.removeMarketListing(listingId);
+            
+            if (listing) {
+                // Return item to owner
+                const { item, type } = listing;
+                if (type === 'weapon') {
+                    gameState.player.ownedWeapons.push(item);
+                } else if (type === 'armor') {
+                    gameState.player.ownedArmors.push(item);
+                } else if (type === 'pet') {
+                    gameState.player.ownedPets.push(item);
+                }
+                
+                saveGame();
+                addLog(`✅ Đã gỡ ${item.icon} ${item.name} khỏi chợ!`, 'success');
+                render();
+            }
         }
 
         // ==================== UPGRADE FUNCTIONS ====================
@@ -584,7 +950,12 @@ a<!DOCTYPE html>
         }
 
         function watchAd(type) {
-            addLog('📺 Đang tải quảng cáo... (Demo mode)', 'info');
+            addLog('📺 Đang tải quảng cáo...', 'info');
+            
+            // Trigger Adsterra script (if available)
+            if (window.atOptions) {
+                // Adsterra ad display logic
+            }
             
             setTimeout(() => {
                 gameState.adsWatched++;
@@ -609,793 +980,54 @@ a<!DOCTYPE html>
         }
 
         // ==================== WITHDRAW FUNCTIONS ====================
-        function addWithdrawHistory(method, amount, details) {
-            const record = {
-                id: Date.now(),
-                date: new Date().toLocaleString('vi-VN'),
-                method,
-                amount,
-                details,
-                status: 'Đang xử lý',
-                code: method === 'card' ? generateCardCode() : null
-            };
+        function submitWithdraw(method) {
+            let formData = {};
             
-            gameState.withdrawHistory.unshift(record);
-            saveGame();
-        }
-
-        function generateCardCode() {
-            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-            let code = '';
-            for (let i = 0; i < 12; i++) {
-                code += chars[Math.floor(Math.random() * chars.length)];
-            }
-            return code;
-        }
-
-        function withdrawMoney(method, formData) {
-            const minAmounts = {
-                bank: 20000,
-                momo: 20000,
-                card: 10000
-            };
-
-            const amount = parseInt(formData.amount);
-
-            if (amount < minAmounts[method]) {
-                alert(`Số tiền tối thiểu là ${minAmounts[method].toLocaleString()}đ`);
-                return;
-            }
-
-            if (method === 'card' && amount > 100000) {
-                alert('Thẻ cào tối đa 100,000đ');
-                return;
-            }
-
-            addWithdrawHistory(method, amount, formData);
-            alert(`✅ Yêu cầu rút ${amount.toLocaleString()}đ đã được ghi nhận!\n\nTrạng thái: Đang xử lý\n\n(Demo mode: Cần backend thật để xử lý thanh toán)`);
-            gameState.currentView = 'withdraw-history';
-            render();
-        }
-
-        // ==================== CHARACTER CREATION ====================
-        function handleCreateCharacter() {
-            const nameInput = document.getElementById('playerNameInput');
-            const playerName = nameInput.value.trim();
-
-            if (playerName.length < 5) {
-                gameState.nameError = 'Tên phải có ít nhất 5 ký tự!';
-                render();
-                return;
-            }
-            
-            const hasNumber = /\d/.test(playerName);
-            if (!hasNumber) {
-                gameState.nameError = 'Tên phải có ít nhất 1 chữ số!';
-                render();
-                return;
-            }
-
-            gameState.player.name = playerName;
-            gameState.gameStarted = true;
-            saveGame();
-            setTimeout(() => {
-                startBattle();
-            }, 500);
-            render();
-        }
-
-        // ==================== RENDER FUNCTIONS ====================
-        function renderCharacterCreation() {
-            return `
-                <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4 md:p-8 flex items-center justify-center">
-                    <div class="max-w-md w-full bg-gradient-to-br from-purple-800/50 to-blue-800/50 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-purple-500/30 slide-in">
-                        <div class="text-center mb-8">
-                            <div class="text-6xl mb-4 animate-bounce">⚔️</div>
-                            <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
-                                GAME ONLINE
-                            </h1>
-                            <p class="text-purple-300">Bắt đầu hành trình của bạn!</p>
-                        </div>
-
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-bold mb-2 text-purple-200">🎮 Tên Nhân Vật</label>
-                                <input
-                                    type="text"
-                                    id="playerNameInput"
-                                    placeholder="Tối thiểu 5 ký tự + 1 số"
-                                    class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
-                                    onkeypress="if(event.key==='Enter') handleCreateCharacter()"
-                                />
-                                ${gameState.nameError ? `<p class="text-red-400 text-sm mt-2">⚠️ ${gameState.nameError}</p>` : ''}
-                            </div>
-
-                            <div class="bg-black/30 rounded-xl p-4 border border-purple-500/30">
-                                <h3 class="font-bold mb-3 text-yellow-400 text-center">📊 NHÂN VẬT BAN ĐẦU</h3>
-                                <div class="grid grid-cols-2 gap-3 text-sm">
-                                    <div class="bg-red-900/30 p-3 rounded-lg border border-red-500/30">
-                                        <div class="text-center">
-                                            <div class="text-2xl mb-1">❤️</div>
-                                            <div class="font-bold">HP: 100</div>
-                                        </div>
-                                    </div>
-                                    <div class="bg-orange-900/30 p-3 rounded-lg border border-orange-500/30">
-                                        <div class="text-center">
-                                            <div class="text-2xl mb-1">⚔️</div>
-                                            <div class="font-bold">ATK: 2</div>
-                                        </div>
-                                    </div>
-                                    <div class="bg-blue-900/30 p-3 rounded-lg border border-blue-500/30">
-                                        <div class="text-center">
-                                            <div class="text-2xl mb-1">🛡️</div>
-                                            <div class="font-bold">DEF: 0</div>
-                                        </div>
-                                    </div>
-                                    <div class="bg-yellow-900/30 p-3 rounded-lg border border-yellow-500/30">
-                                        <div class="text-center">
-                                            <div class="text-2xl mb-1">⚡</div>
-                                            <div class="font-bold">CRIT: 5%</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                onclick="handleCreateCharacter()"
-                                class="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200"
-                            >
-                                🎮 BẮT ĐẦU PHIÊU LƯU
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderGameView() {
-            const stats = getTotalStats();
-            
-            return `
-                <div class="grid lg:grid-cols-2 gap-4 md:gap-6">
-                    <!-- Battle Arena -->
-                    <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30 shadow-xl">
-                        <div class="flex justify-between items-center mb-4">
-                            <h2 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
-                                ⚔️ CHIẾN TRƯỜNG
-                            </h2>
-                            <button
-                                onclick="toggleAutoFight()"
-                                class="px-3 py-1 rounded-lg text-xs md:text-sm font-bold ${
-                                    gameState.autoFight 
-                                        ? 'bg-green-600 hover:bg-green-700' 
-                                        : 'bg-gray-600 hover:bg-gray-700'
-                                }"
-                            >
-                                ${gameState.autoFight ? '🔄 Auto ON' : '⏸️ Auto OFF'}
-                            </button>
-                        </div>
-                        
-                        ${!gameState.isInBattle ? `
-                            <div class="text-center space-y-4">
-                                <div class="text-6xl mb-4 animate-bounce">🏰</div>
-                                <p class="text-purple-300 mb-4">Ải ${gameState.player.currentStage} - Quái đã tiêu diệt: ${gameState.player.totalMonstersKilled}</p>
-                                <p class="text-yellow-300 text-sm">
-                                    ${gameState.player.totalMonstersKilled % 10 === 0 && gameState.player.totalMonstersKilled > 0 ? '👹 BOSS ẢI SẮP XUẤT HIỆN!' : `Còn ${10 - (gameState.player.totalMonstersKilled % 10)} quái nữa gặp Boss Ải`}
-                                </p>
-                                ${gameState.autoFight ? `
-                                    <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-3">
-                                        <p class="text-green-300 text-sm animate-pulse">⚡ Đang tự động spawn quái...</p>
-                                        <p class="text-xs text-green-200 mt-1">Quái mới sẽ xuất hiện sau 1.5 giây</p>
-                                    </div>
-                                ` : `
-                                    <button 
-                                        onclick="startBattle(); render();"
-                                        class="w-full py-4 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all"
-                                    >
-                                        ⚔️ BẮT ĐẦU CHIẾN ĐẤU
-                                    </button>
-                                `}
-                            </div>
-                        ` : `
-                            <div class="space-y-4">
-                                <!-- Monster -->
-                                <div 
-                                    onclick="playerAttack(event)"
-                                    class="bg-red-900/30 rounded-xl p-4 md:p-6 border-2 border-red-500/50 cursor-pointer hover:bg-red-800/40 hover:border-red-400 hover:scale-105 transition-all duration-200 relative overflow-hidden active:scale-95"
-                                    style="user-select: none"
-                                >
-                                    <div class="text-center relative z-10">
-                                        <div class="text-5xl md:text-7xl mb-3 animate-bounce">${gameState.monster.icon}</div>
-                                        <h3 class="font-bold text-xl md:text-2xl text-red-300 mb-2">${gameState.monster.name}</h3>
-                                        <div class="bg-black/50 rounded-lg p-3 inline-block w-full max-w-xs">
-                                            <div class="flex items-center justify-center gap-2 mb-2">
-                                                <span>❤️</span>
-                                                <span class="font-bold text-lg md:text-xl">${gameState.monster.hp}/${gameState.monster.maxHp}</span>
-                                            </div>
-                                            <div class="w-full bg-black/50 rounded-full h-4 overflow-hidden">
-                                                <div 
-                                                    class="bg-gradient-to-r from-red-600 to-pink-500 h-full transition-all duration-300"
-                                                    style="width: ${(gameState.monster.hp / gameState.monster.maxHp) * 100}%"
-                                                ></div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="mt-4 text-yellow-300 text-sm animate-pulse">
-                                            👆 CLICK ĐỂ TẤN CÔNG! 👆
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="absolute inset-0 bg-gradient-to-r from-red-500/20 to-orange-500/20 blur-xl opacity-50 pointer-events-none"></div>
-                                </div>
-
-                                <!-- VS -->
-                                <div class="text-center">
-                                    <span class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent">
-                                        ⚡ VS ⚡
-                                    </span>
-                                </div>
-
-                                <!-- Player -->
-                                <div class="bg-blue-900/30 rounded-xl p-4 border-2 border-blue-500/50">
-                                    <div class="text-center">
-                                        <div class="text-5xl md:text-6xl mb-2">🛡️</div>
-                                        <h3 class="font-bold text-lg md:text-xl text-blue-300">${gameState.player.name}</h3>
-                                        <div class="mt-2">
-                                            <div class="flex items-center justify-center gap-2 mb-1">
-                                                <span>❤️</span>
-                                                <span class="font-bold">${gameState.player.hp}/${stats.totalHp}</span>
-                                            </div>
-                                            <div class="w-full bg-black/50 rounded-full h-3 overflow-hidden">
-                                                <div 
-                                                    class="bg-gradient-to-r from-green-600 to-emerald-500 h-full transition-all duration-300"
-                                                    style="width: ${(gameState.player.hp / stats.totalHp) * 100}%"
-                                                ></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Stats Info -->
-                                <div class="bg-black/30 rounded-lg p-3 text-center text-sm">
-                                    <div class="flex justify-around flex-wrap gap-2">
-                                        <span>⚔️ ATK: <strong class="text-orange-400">${stats.totalAtk}</strong></span>
-                                        <span>🛡️ DEF: <strong class="text-blue-400">${stats.totalDef}</strong></span>
-                                        <span>⚡ CRIT: <strong class="text-yellow-400">${stats.totalCrit}%</strong></span>
-                                    </div>
-                                </div>
-                            </div>
-                        `}
-                    </div>
-
-                    <!-- Battle Log & Equipment -->
-                    <div class="space-y-4 md:space-y-6">
-                        <!-- Battle Log -->
-                        <div class="bg-black/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4 flex items-center gap-2">
-                                <span>✨</span>
-                                Nhật Ký Chiến Đấu
-                            </h3>
-                            <div class="space-y-2 max-h-48 md:max-h-64 overflow-y-auto">
-                                ${gameState.battleLog.length === 0 ? 
-                                    '<p class="text-purple-300 text-center py-4">Chưa có trận chiến nào...</p>' :
-                                    gameState.battleLog.map(log => `
-                                        <div class="p-2 rounded-lg text-sm ${
-                                            log.type === 'success' ? 'bg-green-900/30 text-green-300' :
-                                            log.type === 'error' ? 'bg-red-900/30 text-red-300' :
-                                            'bg-blue-900/30 text-blue-300'
-                                        }">
-                                            ${log.message}
-                                        </div>
-                                    `).join('')
-                                }
-                            </div>
-                        </div>
-
-                        <!-- Equipment -->
-                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4 flex items-center gap-2">
-                                <span>👑</span>
-                                Trang Bị Hiện Tại
-                            </h3>
-                            <div class="space-y-3">
-                                <div class="bg-black/30 p-3 rounded-lg">
-                                    <div class="flex items-center justify-between text-sm md:text-base">
-                                        <span class="text-purple-300">⚔️ Vũ Khí:</span>
-                                        <span class="font-bold">${gameState.player.weapon ? `${gameState.player.weapon.icon} ${gameState.player.weapon.name}` : 'Chưa có'}</span>
-                                    </div>
-                                </div>
-                                <div class="bg-black/30 p-3 rounded-lg">
-                                    <div class="flex items-center justify-between text-sm md:text-base">
-                                        <span class="text-purple-300">🛡️ Giáp:</span>
-                                        <span class="font-bold">${gameState.player.armor ? `${gameState.player.armor.icon} ${gameState.player.armor.name}` : 'Chưa có'}</span>
-                                    </div>
-                                </div>
-                                <div class="bg-black/30 p-3 rounded-lg">
-                                    <div class="flex items-center justify-between text-sm md:text-base">
-                                        <span class="text-purple-300">🐾 Pet:</span>
-                                        <span class="font-bold">${gameState.player.pet ? `${gameState.player.pet.icon} ${gameState.player.pet.name}` : 'Chưa có'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderUpgradeView() {
-            const upgradeItems = [
-                { 
-                    stat: 'atk', 
-                    label: 'Sức Mạnh', 
-                    icon: '⚔️', 
-                    current: gameState.player.atk, 
-                    bonus: '+5 ATK', 
-                    color: 'from-orange-500 to-red-600', 
-                    cost: 100 + gameState.player.atk * 50 
-                },
-                { 
-                    stat: 'hp', 
-                    label: 'Máu', 
-                    icon: '❤️', 
-                    current: gameState.player.maxHp, 
-                    bonus: '+20 HP', 
-                    color: 'from-red-500 to-pink-600', 
-                    cost: 150 + gameState.player.maxHp * 2 
-                },
-                { 
-                    stat: 'crit', 
-                    label: 'Chí Mạng', 
-                    icon: '⚡', 
-                    current: gameState.player.crit, 
-                    bonus: '+2% CRIT', 
-                    color: 'from-yellow-500 to-orange-600', 
-                    cost: 200 + gameState.player.crit * 100 
+            if (method === 'bank') {
+                formData = {
+                    bankName: document.getElementById('bankName').value,
+                    account: document.getElementById('bankAccount').value,
+                    owner: document.getElementById('bankOwner').value,
+                    amount: document.getElementById('bankAmount').value
+                };
+                
+                if (!formData.account || !formData.owner || !formData.amount) {
+                    alert('Vui lòng điền đầy đủ thông tin!');
+                    return;
                 }
-            ];
 
-            return `
-                <div class="max-w-4xl mx-auto">
-                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
-                        ⬆️ NÂNG CẤP NHÂN VẬT
-                    </h2>
-                    <div class="grid md:grid-cols-3 gap-4">
-                        ${upgradeItems.map(item => `
-                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
-                                <div class="text-center mb-4">
-                                    <div class="text-4xl md:text-5xl mb-2">${item.icon}</div>
-                                    <h3 class="font-bold text-lg md:text-xl">${item.label}</h3>
-                                    <p class="text-purple-300 text-sm mt-1">Hiện tại: ${item.current}</p>
-                                </div>
-                                <button
-                                    onclick="upgradeStats('${item.stat}'); render();"
-                                    class="w-full py-3 bg-gradient-to-r ${item.color} hover:scale-105 rounded-xl font-bold shadow-lg transform transition-all"
-                                >
-                                    ${item.bonus}
-                                    <div class="text-sm mt-1">💰 ${item.cost.toLocaleString()}đ</div>
-                                </button>
-                            </div>
-                        `).join('')}
-                    </div>
-                    
-                    <div class="mt-6 bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-4">
-                        <p class="text-center text-yellow-300 text-sm">
-                            💡 <strong>Mẹo:</strong> Giá nâng cấp tăng dần theo stats hiện tại của bạn!
-                        </p>
-                    </div>
-                </div>
-            `;
-        }
+                if (parseInt(formData.amount) < 20000) {
+                    alert('Số tiền tối thiểu là 20,000đ');
+                    return;
+                }
+            } else if (method === 'momo') {
+                formData = {
+                    phone: document.getElementById('momoPhone').value,
+                    owner: document.getElementById('momoOwner').value,
+                    amount: document.getElementById('momoAmount').value
+                };
+                
+                if (!formData.phone || !formData.owner || !formData.amount) {
+                    alert('Vui lòng điền đầy đủ thông tin!');
+                    return;
+                }
 
-        function renderShopView() {
-            return `
-                <div class="space-y-6 md:space-y-8">
-                    <!-- Weapon Shop -->
-                    <div>
-                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-                            ⚔️ SHOP VŨ KHÍ
-                        </h2>
-                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
-                            ${weaponShop.map(weapon => {
-                                const isEquipped = gameState.player.weapon?.name === weapon.name;
-                                const isOwned = gameState.player.ownedWeapons.some(w => w.name === weapon.name);
-                                
-                                return `
-                                <div class="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-3 md:p-4 border-2 ${
-                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-orange-500/30'
-                                } hover:border-orange-400 transition-all hover:scale-105">
-                                    <div class="text-center">
-                                        <div class="text-3xl md:text-4xl mb-2">${weapon.icon}</div>
-                                        <h3 class="font-bold text-sm md:text-base">${weapon.name}</h3>
-                                        <p class="text-orange-300 text-xs md:text-sm">+${weapon.atk} ATK</p>
-                                        ${isEquipped ? `
-                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs md:text-sm">
-                                                ✓ Đang dùng
-                                            </div>
-                                        ` : isOwned ? `
-                                            <button
-                                                onclick="equipItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon');"
-                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
-                                            >
-                                                🔄 Trang bị
-                                            </button>
-                                        ` : `
-                                            <button
-                                                onclick="buyItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon'); render();"
-                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700"
-                                            >
-                                                💰 ${weapon.price}đ
-                                            </button>
-                                        `}
-                                    </div>
-                                </div>
-                            `}).join('')}
-                        </div>
-                    </div>
+                if (parseInt(formData.amount) < 20000) {
+                    alert('Số tiền tối thiểu là 20,000đ');
+                    return;
+                }
+            } else if (method === 'card') {
+                formData = {
+                    amount: document.getElementById('cardAmount').value
+                };
+            }
 
-                    <!-- Armor Shop -->
-                    <div>
-                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                            🛡️ SHOP GIÁP
-                        </h2>
-                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${armorShop.map(armor => {
-                                const isEquipped = gameState.player.armor?.name === armor.name;
-                                const isOwned = gameState.player.ownedArmors.some(a => a.name === armor.name);
-                                
-                                return `
-                                <div class="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-3 md:p-4 border-2 ${
-                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-blue-500/30'
-                                } hover:border-blue-400 transition-all hover:scale-105">
-                                    <div class="text-center">
-                                        <div class="text-3xl md:text-4xl mb-2">${armor.icon}</div>
-                                        <h3 class="font-bold text-sm">${armor.name}</h3>
-                                        <p class="text-blue-300 text-xs">+${armor.def} DEF</p>
-                                        <p class="text-red-300 text-xs">+${armor.hp} HP</p>
-                                        ${isEquipped ? `
-                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs md:text-sm">
-                                                ✓ Đang dùng
-                                            </div>
-                                        ` : isOwned ? `
-                                            <button
-                                                onclick="equipItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor');"
-                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
-                                            >
-                                                🔄 Trang bị
-                                            </button>
-                                        ` : `
-                                            <button
-                                                onclick="buyItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor'); render();"
-                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
-                                            >
-                                                💰 ${armor.price}đ
-                                            </button>
-                                        `}
-                                    </div>
-                                </div>
-                            `}).join('')}
-                        </div>
-                    </div>
-
-                    <!-- Pet Shop -->
-                    <div>
-                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
-                            🐾 SHOP PET
-                        </h2>
-                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
-                            ${petShop.map(pet => {
-                                const isEquipped = gameState.player.pet?.name === pet.name;
-                                const isOwned = gameState.player.ownedPets.some(p => p.name === pet.name);
-                                
-                                return `
-                                <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-3 md:p-4 border-2 ${
-                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-green-500/30'
-                                } hover:border-green-400 transition-all hover:scale-105">
-                                    <div class="text-center">
-                                        <div class="text-3xl md:text-4xl mb-2">${pet.icon}</div>
-                                        <h3 class="font-bold text-sm">${pet.name}</h3>
-                                        <p class="text-green-300 text-xs">+${pet.atkBonus}% ATK</p>
-                                        ${isEquipped ? `
-                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs md:text-sm">
-                                                ✓ Đang dùng
-                                            </div>
-                                        ` : isOwned ? `
-                                            <button
-                                                onclick="equipItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet');"
-                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
-                                            >
-                                                🔄 Triệu hồi
-                                            </button>
-                                        ` : `
-                                            <button
-                                                onclick="buyItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet'); render();"
-                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs md:text-sm bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
-                                            >
-                                                💰 ${pet.price}đ
-                                            </button>
-                                        `}
-                                    </div>
-                                </div>
-                            `}).join('')}
-                        </div>
-                    </div>
-                    
-                    <div class="bg-blue-900/30 border-2 border-blue-500/50 rounded-xl p-4">
-                        <h3 class="font-bold text-center mb-2">💡 Hướng Dẫn:</h3>
-                        <ul class="text-sm text-blue-200 space-y-1">
-                            <li>• Mua một lần, sử dụng mãi mãi!</li>
-                            <li>• Vật phẩm đã mua có thể chuyển đổi tự do</li>
-                            <li>• Viền xanh = Đang sử dụng</li>
-                            <li>• Nút "Trang bị" = Đã sở hữu, click để chuyển đổi</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderBossView() {
-            return `
-                <div class="max-w-4xl mx-auto">
-                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
-                        👑 BOSS TỰ CHỌN
-                    </h2>
-                    <div class="grid md:grid-cols-2 gap-4 md:gap-6">
-                        <!-- Daily Boss -->
-                        <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-2xl p-4 md:p-6 border-2 border-red-500/30">
-                            <div class="text-center mb-4">
-                                <div class="text-5xl md:text-6xl mb-2">🔥</div>
-                                <h3 class="text-xl md:text-2xl font-bold text-red-300">BOSS NGÀY</h3>
-                                <p class="text-sm text-orange-300 mt-2">Phần thưởng x5 Vàng!</p>
-                            </div>
-                            <div class="bg-black/30 rounded-lg p-3 mb-4">
-                                <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.dailyBosses}/2</span></p>
-                                <p class="text-xs text-purple-300 text-center mt-1">Reset mỗi 24 giờ</p>
-                            </div>
-                            <button
-                                onclick="startBattle('daily'); render();"
-                                ${gameState.player.dailyBosses <= 0 ? 'disabled' : ''}
-                                class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
-                                    gameState.player.dailyBosses > 0
-                                        ? 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 hover:scale-105'
-                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
-                                }"
-                            >
-                                ${gameState.player.dailyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
-                            </button>
-                        </div>
-
-                        <!-- Weekly Boss -->
-                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <div class="text-center mb-4">
-                                <div class="text-5xl md:text-6xl mb-2">⚡</div>
-                                <h3 class="text-xl md:text-2xl font-bold text-purple-300">BOSS TUẦN</h3>
-                                <p class="text-sm text-pink-300 mt-2">Phần thưởng x10 Vàng!</p>
-                            </div>
-                            <div class="bg-black/30 rounded-lg p-3 mb-4">
-                                <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.weeklyBosses}/3</span></p>
-                                <p class="text-xs text-purple-300 text-center mt-1">Reset mỗi 7 ngày</p>
-                            </div>
-                            <button
-                                onclick="startBattle('weekly'); render();"
-                                ${gameState.player.weeklyBosses <= 0 ? 'disabled' : ''}
-                                class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
-                                    gameState.player.weeklyBosses > 0
-                                        ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:scale-105'
-                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
-                                }"
-                            >
-                                ${gameState.player.weeklyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 bg-blue-900/30 border-2 border-blue-500/50 rounded-xl p-4">
-                        <h3 class="font-bold text-center mb-2">📝 Lưu ý:</h3>
-                        <ul class="text-sm text-blue-200 space-y-1">
-                            <li>• Boss ngày/tuần mạnh hơn rất nhiều so với quái thường</li>
-                            <li>• Đảm bảo trang bị đủ mạnh trước khi thách đấu</li>
-                            <li>• Phần thưởng cao hơn nhiều lần so với quái thường</li>
-                        </ul>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderAdsView() {
-            const adReward = calculateAdReward();
+            DB.addWithdrawRequest(gameState.currentUsername, method, parseInt(formData.amount), formData);
             
-            return `
-                <div class="max-w-4xl mx-auto">
-                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
-                        📺 XEM QUẢNG CÁO NHẬN THƯỞNG
-                    </h2>
-                    
-                    <div class="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-4 mb-6">
-                        <p class="text-center text-yellow-300 text-sm md:text-base">
-                            ⚠️ <strong>DEMO MODE:</strong> Tích hợp Adsterra.com cần backend server thật
-                        </p>
-                        <p class="text-center text-yellow-200 text-xs mt-2">
-                            Số QC đã xem: ${gameState.adsWatched}
-                        </p>
-                    </div>
-
-                    <div class="space-y-4">
-                        <!-- Stat Boosts -->
-                        <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút)</h3>
-                            <div class="grid md:grid-cols-3 gap-3 md:gap-4">
-                                ${[
-                                    { type: 'hp', label: '+100 HP', icon: '❤️', color: 'from-red-500 to-pink-600' },
-                                    { type: 'atk', label: '+75 ATK', icon: '⚔️', color: 'from-orange-500 to-red-600' },
-                                    { type: 'def', label: '+10 DEF', icon: '🛡️', color: 'from-blue-500 to-purple-600' }
-                                ].map(boost => {
-                                    const isActive = gameState.adBoosts[boost.type].active && Date.now() < gameState.adBoosts[boost.type].endTime;
-                                    const timeLeft = isActive ? Math.ceil((gameState.adBoosts[boost.type].endTime - Date.now()) / 1000 / 60) : 0;
-                                    
-                                    return `
-                                        <button
-                                            onclick="watchAd('${boost.type}');"
-                                            ${isActive ? 'disabled' : ''}
-                                            class="py-4 rounded-xl font-bold bg-gradient-to-r ${boost.color} hover:scale-105 transform transition-all ${
-                                                isActive ? 'opacity-50 cursor-not-allowed' : ''
-                                            }"
-                                        >
-                                            <div class="text-2xl mb-1">${boost.icon}</div>
-                                            <div>${boost.label}</div>
-                                            ${isActive ? `<div class="text-xs mt-1">⏳ Còn ${timeLeft} phút</div>` : '<div class="text-xs mt-1">📺 Xem QC</div>'}
-                                        </button>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
-
-                        <!-- Coin Rewards -->
-                        <div class="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-4 md:p-6 border-2 border-yellow-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">💰 NHẬN VÀNG</h3>
-                            <div class="grid md:grid-cols-2 gap-3 md:gap-4">
-                                <button
-                                    onclick="watchAd('coin1');"
-                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
-                                >
-                                    <div class="text-2xl mb-1">💰</div>
-                                    <div>+~${adReward}đ</div>
-                                    <div class="text-xs mt-1">(1 QC - Ngẫu nhiên)</div>
-                                </button>
-                                <button
-                                    onclick="watchAd('coin2');"
-                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
-                                >
-                                    <div class="text-2xl mb-1">💎</div>
-                                    <div>+~${adReward * 2}đ</div>
-                                    <div class="text-xs mt-1">(2 QC - Ngẫu nhiên)</div>
-                                </button>
-                            </div>
-                            <p class="text-xs text-yellow-200 text-center mt-3">
-                                💡 Số coin nhận phụ thuộc vào ải hiện tại và may mắn!
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderMarketView() {
-            return `
-                <div class="max-w-4xl mx-auto">
-                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-                        🏪 CHỢ TRADE CỦA MEMBER
-                    </h2>
-                    
-                    <div class="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-4 mb-6">
-                        <p class="text-center text-yellow-300 text-sm md:text-base">
-                            ⚠️ <strong>DEMO MODE:</strong> Chợ multiplayer thật cần backend server + database
-                        </p>
-                    </div>
-
-                    <div class="grid md:grid-cols-2 gap-4 md:gap-6">
-                        <!-- Market Listings -->
-                        <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">📦 Hàng Đang Bán</h3>
-                            <div class="space-y-2">
-                                ${gameState.marketListings.length === 0 ? 
-                                    '<p class="text-center text-purple-300 py-8">Chưa có hàng nào trên chợ</p>' :
-                                    gameState.marketListings.map((item, i) => `
-                                        <div class="bg-black/30 p-3 rounded-lg hover:bg-black/50 transition-all">
-                                            <div class="flex justify-between items-center">
-                                                <div>
-                                                    <div class="font-bold">${item.name}</div>
-                                                    <div class="text-xs text-purple-300">Người bán: ${item.seller}</div>
-                                                </div>
-                                                <button 
-                                                    onclick="alert('Demo: Cần backend để mua hàng')"
-                                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm"
-                                                >
-                                                    💰 ${item.price}đ
-                                                </button>
-                                            </div>
-                                        </div>
-                                    `).join('')
-                                }
-                            </div>
-                            
-                            <button 
-                                onclick="alert('Demo: Cần backend để đăng bán đồ')"
-                                class="w-full mt-4 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 rounded-xl font-bold"
-                            >
-                                ➕ Đăng Bán Đồ
-                            </button>
-                        </div>
-
-                        <!-- Trade -->
-                        <div class="bg-gradient-to-br from-pink-900/50 to-purple-900/50 rounded-xl p-4 md:p-6 border-2 border-pink-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">🤝 Trade Trực Tiếp</h3>
-                            <div class="space-y-4">
-                                <input
-                                    type="text"
-                                    id="tradeTargetInput"
-                                    placeholder="Nhập tên người chơi..."
-                                    class="w-full px-4 py-3 bg-black/30 border-2 border-pink-500/50 rounded-xl focus:border-pink-400 focus:outline-none text-white"
-                                />
-                                <button 
-                                    onclick="alert('Demo: Cần backend để tìm người chơi')"
-                                    class="w-full py-3 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 rounded-xl font-bold"
-                                >
-                                    🔍 Tìm Người Chơi
-                                </button>
-                                <div class="bg-black/30 rounded-lg p-4 text-center text-sm text-purple-300">
-                                    <p class="mb-2">💡 <strong>Hướng dẫn Trade:</strong></p>
-                                    <ol class="text-left space-y-1 text-xs">
-                                        <li>1. Tìm tên người chơi muốn trade</li>
-                                        <li>2. Chọn đồ muốn trao đổi</li>
-                                        <li>3. Chờ đối phương chấp nhận</li>
-                                        <li>4. Hoàn tất giao dịch</li>
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function renderWithdrawView() {
-            return `
-                <div class="max-w-4xl mx-auto">
-                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
-                        💵 RÚT TIỀN
-                    </h2>
-                    
-                    <div class="bg-red-900/30 border-2 border-red-500/50 rounded-xl p-4 mb-6">
-                        <p class="text-center text-red-300 font-bold text-sm md:text-base">
-                            ⚠️ CẢNH BÁO: Tính năng này CHỈ LÀ GIAO DIỆN DEMO
-                        </p>
-                        <p class="text-center text-red-200 text-xs mt-2">
-                            Rút tiền thật cần: Giấy phép kinh doanh, Backend server bảo mật, Tích hợp Payment Gateway hợp pháp
-                        </p>
-                    </div>
-
-                    <div class="grid md:grid-cols-3 gap-3 md:gap-4 mb-6">
-                        ${[
-                            { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '20K' },
-                            { method: 'momo', label: 'MoMo', icon: '📱', min: '20K' },
-                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '10K' }
-                        ].map(item => `
-                            <button
-                                onclick="showWithdrawForm('${item.method}')"
-                                class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-4 md:p-6 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
-                            >
-                                <div class="text-4xl md:text-5xl mb-2">${item.icon}</div>
-                                <h3 class="font-bold">${item.label}</h3>
-                                <p class="text-sm text-green-300">Min: ${item.min}</p>
-                            </button>
-                        `).join('')}
-                    </div>
-
-                    <!-- Withdraw Form -->
-                    <div id="withdrawForm" class="hidden"></div>
-                </div>
-            `;
+            alert(`✅ Yêu cầu rút ${parseInt(formData.amount).toLocaleString()}đ đã được gửi!\n\nVui lòng chờ admin duyệt.`);
+            gameState.currentView = 'withdraw-history';
+            document.getElementById('withdrawForm').classList.add('hidden');
+            render();
         }
 
         function showWithdrawForm(method) {
@@ -1495,42 +1127,825 @@ a<!DOCTYPE html>
             formContainer.innerHTML = formHTML;
         }
 
-        function submitWithdraw(method) {
-            let formData = {};
-            
-            if (method === 'bank') {
-                formData = {
-                    bankName: document.getElementById('bankName').value,
-                    account: document.getElementById('bankAccount').value,
-                    owner: document.getElementById('bankOwner').value,
-                    amount: document.getElementById('bankAmount').value
-                };
-                
-                if (!formData.account || !formData.owner || !formData.amount) {
-                    alert('Vui lòng điền đầy đủ thông tin!');
-                    return;
-                }
-            } else if (method === 'momo') {
-                formData = {
-                    phone: document.getElementById('momoPhone').value,
-                    owner: document.getElementById('momoOwner').value,
-                    amount: document.getElementById('momoAmount').value
-                };
-                
-                if (!formData.phone || !formData.owner || !formData.amount) {
-                    alert('Vui lòng điền đầy đủ thông tin!');
-                    return;
-                }
-            } else if (method === 'card') {
-                formData = {
-                    amount: document.getElementById('cardAmount').value
-                };
+        // ==================== ADMIN FUNCTIONS ====================
+        function approveWithdraw(requestId) {
+            if (confirm('Xác nhận duyệt yêu cầu này?')) {
+                DB.updateWithdrawStatus(requestId, 'approved');
+                addLog('✅ Đã duyệt yêu cầu rút tiền!', 'success');
+                render();
             }
+        }
+
+        function rejectWithdraw(requestId) {
+            if (confirm('Xác nhận từ chối yêu cầu này?')) {
+                DB.updateWithdrawStatus(requestId, 'rejected');
+                addLog('❌ Đã từ chối yêu cầu rút tiền!', 'error');
+                render();
+            }
+        }
+
+        function deleteWithdraw(requestId) {
+            if (confirm('Xóa yêu cầu này khỏi danh sách?')) {
+                DB.deleteWithdrawRequest(requestId);
+                addLog('🗑️ Đã xóa yêu cầu!', 'info');
+                render();
+            }
+        }
+
+        // ==================== RENDER FUNCTIONS ====================
+        function renderAuthScreen() {
+            if (gameState.authView === 'login') {
+                return `
+                    <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4 md:p-8 flex items-center justify-center">
+                        <div class="max-w-md w-full bg-gradient-to-br from-purple-800/50 to-blue-800/50 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-purple-500/30 slide-in">
+                            <div class="text-center mb-8">
+                                <div class="text-6xl mb-4 animate-bounce">⚔️</div>
+                                <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                    GAME RPG ONLINE
+                                </h1>
+                                <p class="text-purple-300">Đăng nhập để tiếp tục</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">👤 Username</label>
+                                    <input
+                                        type="text"
+                                        id="loginUsername"
+                                        placeholder="Nhập username"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                        onkeypress="if(event.key==='Enter') handleLogin()"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">🔒 Password</label>
+                                    <input
+                                        type="password"
+                                        id="loginPassword"
+                                        placeholder="Nhập password"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                        onkeypress="if(event.key==='Enter') handleLogin()"
+                                    />
+                                </div>
+
+                                ${gameState.authError ? `<p class="text-red-400 text-sm text-center">⚠️ ${gameState.authError}</p>` : ''}
+
+                                <button
+                                    onclick="handleLogin()"
+                                    class="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+                                >
+                                    🎮 ĐĂNG NHẬP
+                                </button>
+
+                                <div class="text-center">
+                                    <button
+                                        onclick="gameState.authView='register'; gameState.authError=''; render();"
+                                        class="text-purple-300 hover:text-purple-100 text-sm underline"
+                                    >
+                                        Chưa có tài khoản? Đăng ký ngay
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-black text-white p-4 md:p-8 flex items-center justify-center">
+                        <div class="max-w-md w-full bg-gradient-to-br from-purple-800/50 to-blue-800/50 backdrop-blur-lg rounded-3xl p-6 md:p-8 shadow-2xl border border-purple-500/30 slide-in">
+                            <div class="text-center mb-8">
+                                <div class="text-6xl mb-4">📝</div>
+                                <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                    ĐĂNG KÝ TÀI KHOẢN
+                                </h1>
+                                <p class="text-purple-300">Tạo tài khoản mới để bắt đầu</p>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">👤 Username</label>
+                                    <input
+                                        type="text"
+                                        id="registerUsername"
+                                        placeholder="Tối thiểu 3 ký tự"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-bold mb-2 text-purple-200">🔒 Password</label>
+                                    <input
+                                        type="password"
+                                        id="registerPassword"
+                                        placeholder="Tối thiểu 5 ký tự"
+                                        class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white placeholder-purple-300"
+                                        onkeypress="if(event.key==='Enter') handleRegister()"
+                                    />
+                                </div>
+
+                                ${gameState.authError ? `<p class="text-red-400 text-sm text-center">⚠️ ${gameState.authError}</p>` : ''}
+
+                                <button
+                                    onclick="handleRegister()"
+                                    class="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+                                >
+                                    ✅ TẠO TÀI KHOẢN
+                                </button>
+
+                                <div class="text-center">
+                                    <button
+                                        onclick="gameState.authView='login'; gameState.authError=''; render();"
+                                        class="text-purple-300 hover:text-purple-100 text-sm underline"
+                                    >
+                                        Đã có tài khoản? Đăng nhập
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderGameView() {
+            const stats = getTotalStats();
             
-            withdrawMoney(method, formData);
+            return `
+                <div class="grid lg:grid-cols-2 gap-4 md:gap-6">
+                    <!-- Battle Arena -->
+                    <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30 shadow-xl">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                                ⚔️ CHIẾN TRƯỜNG
+                            </h2>
+                            <button
+                                onclick="toggleAutoFight()"
+                                class="px-3 py-1 rounded-lg text-xs md:text-sm font-bold ${
+                                    gameState.autoFight 
+                                        ? 'bg-green-600 hover:bg-green-700' 
+                                        : 'bg-gray-600 hover:bg-gray-700'
+                                }"
+                            >
+                                ${gameState.autoFight ? '🔄 Auto ON' : '⏸️ Auto OFF'}
+                            </button>
+                        </div>
+                        
+                        ${!gameState.isInBattle ? `
+                            <div class="text-center space-y-4">
+                                <div class="text-6xl mb-4 animate-bounce">🏰</div>
+                                <p class="text-purple-300 mb-4">Ải ${gameState.player.currentStage} - Quái đã tiêu diệt: ${gameState.player.totalMonstersKilled}</p>
+                                <p class="text-yellow-300 text-sm">
+                                    ${gameState.player.totalMonstersKilled % 10 === 0 && gameState.player.totalMonstersKilled > 0 ? '👹 BOSS ẢI SẮP XUẤT HIỆN!' : `Còn ${10 - (gameState.player.totalMonstersKilled % 10)} quái nữa gặp Boss Ải`}
+                                </p>
+                                ${gameState.autoFight ? `
+                                    <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-3">
+                                        <p class="text-green-300 text-sm animate-pulse">⚡ Đang tự động spawn quái...</p>
+                                    </div>
+                                ` : `
+                                    <button 
+                                        onclick="startBattle(); render();"
+                                        class="w-full py-4 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all"
+                                    >
+                                        ⚔️ BẮT ĐẦU CHIẾN ĐẤU
+                                    </button>
+                                `}
+                            </div>
+                        ` : `
+                            <div class="space-y-4">
+                                <div 
+                                    onclick="playerAttack(event)"
+                                    class="bg-red-900/30 rounded-xl p-4 md:p-6 border-2 border-red-500/50 cursor-pointer hover:bg-red-800/40 hover:border-red-400 hover:scale-105 transition-all duration-200 relative overflow-hidden active:scale-95"
+                                >
+                                    <div class="text-center">
+                                        <div class="text-5xl md:text-7xl mb-3 animate-bounce">${gameState.monster.icon}</div>
+                                        <h3 class="font-bold text-xl md:text-2xl text-red-300 mb-2">${gameState.monster.name}</h3>
+                                        <div class="bg-black/50 rounded-lg p-3">
+                                            <div class="flex items-center justify-center gap-2 mb-2">
+                                                <span>❤️</span>
+                                                <span class="font-bold text-lg">${gameState.monster.hp}/${gameState.monster.maxHp}</span>
+                                            </div>
+                                            <div class="w-full bg-black/50 rounded-full h-4">
+                                                <div class="bg-gradient-to-r from-red-600 to-pink-500 h-full transition-all" style="width: ${(gameState.monster.hp / gameState.monster.maxHp) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-4 text-yellow-300 text-sm animate-pulse">👆 CLICK ĐỂ TẤN CÔNG!</div>
+                                    </div>
+                                </div>
+
+                                <div class="text-center">
+                                    <span class="text-3xl font-bold bg-gradient-to-r from-yellow-400 to-red-500 bg-clip-text text-transparent">⚡ VS ⚡</span>
+                                </div>
+
+                                <div class="bg-blue-900/30 rounded-xl p-4 border-2 border-blue-500/50">
+                                    <div class="text-center">
+                                        <div class="text-5xl mb-2">🛡️</div>
+                                        <h3 class="font-bold text-lg text-blue-300">${gameState.player.name}</h3>
+                                        <div class="mt-2">
+                                            <div class="flex items-center justify-center gap-2 mb-1">
+                                                <span>❤️</span>
+                                                <span class="font-bold">${gameState.player.hp}/${stats.totalHp}</span>
+                                            </div>
+                                            <div class="w-full bg-black/50 rounded-full h-3">
+                                                <div class="bg-gradient-to-r from-green-600 to-emerald-500 h-full transition-all" style="width: ${(gameState.player.hp / stats.totalHp) * 100}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Battle Log & Equipment -->
+                    <div class="space-y-4">
+                        <div class="bg-black/50 rounded-2xl p-4 border-2 border-purple-500/30">
+                            <h3 class="text-lg font-bold mb-4">✨ Nhật Ký</h3>
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                                ${gameState.battleLog.length === 0 ? 
+                                    '<p class="text-purple-300 text-center py-4">Chưa có trận chiến...</p>' :
+                                    gameState.battleLog.map(log => `
+                                        <div class="p-2 rounded-lg text-sm ${
+                                            log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                                            log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                                            'bg-blue-900/30 text-blue-300'
+                                        }">
+                                            ${log.message}
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 border-2 border-purple-500/30">
+                            <h3 class="text-lg font-bold mb-4">👑 Trang Bị</h3>
+                            <div class="space-y-3">
+                                <div class="bg-black/30 p-3 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-purple-300">⚔️ Vũ Khí:</span>
+                                        <span class="font-bold">${gameState.player.weapon ? `${gameState.player.weapon.icon} ${gameState.player.weapon.name}` : 'Chưa có'}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-black/30 p-3 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-purple-300">🛡️ Giáp:</span>
+                                        <span class="font-bold">${gameState.player.armor ? `${gameState.player.armor.icon} ${gameState.player.armor.name}` : 'Chưa có'}</span>
+                                    </div>
+                                </div>
+                                <div class="bg-black/30 p-3 rounded-lg">
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-purple-300">🐾 Pet:</span>
+                                        <span class="font-bold">${gameState.player.pet ? `${gameState.player.pet.icon} ${gameState.player.pet.name}` : 'Chưa có'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderUpgradeView() {
+            const upgradeItems = [
+                { stat: 'atk', label: 'Sức Mạnh', icon: '⚔️', current: gameState.player.atk, bonus: '+5 ATK', color: 'from-orange-500 to-red-600', cost: 100 + gameState.player.atk * 50 },
+                { stat: 'hp', label: 'Máu', icon: '❤️', current: gameState.player.maxHp, bonus: '+20 HP', color: 'from-red-500 to-pink-600', cost: 150 + gameState.player.maxHp * 2 },
+                { stat: 'crit', label: 'Chí Mạng', icon: '⚡', current: gameState.player.crit, bonus: '+2% CRIT', color: 'from-yellow-500 to-orange-600', cost: 200 + gameState.player.crit * 100 }
+            ];
+
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
+                        ⬆️ NÂNG CẤP NHÂN VẬT
+                    </h2>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        ${upgradeItems.map(item => `
+                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
+                                <div class="text-center mb-4">
+                                    <div class="text-4xl md:text-5xl mb-2">${item.icon}</div>
+                                    <h3 class="font-bold text-lg">${item.label}</h3>
+                                    <p class="text-purple-300 text-sm mt-1">Hiện tại: ${item.current}</p>
+                                </div>
+                                <button
+                                    onclick="upgradeStats('${item.stat}'); render();"
+                                    class="w-full py-3 bg-gradient-to-r ${item.color} hover:scale-105 rounded-xl font-bold shadow-lg transform transition-all"
+                                >
+                                    ${item.bonus}
+                                    <div class="text-sm mt-1">💰 ${item.cost.toLocaleString()}đ</div>
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderShopView() {
+            return `
+                <div class="space-y-6 md:space-y-8">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                            ⚔️ SHOP VŨ KHÍ
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
+                            ${weaponShop.map(weapon => {
+                                const isEquipped = gameState.player.weapon?.name === weapon.name;
+                                const isOwned = gameState.player.ownedWeapons.some(w => w.name === weapon.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-orange-900/50 to-red-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-orange-500/30'
+                                } hover:border-orange-400 transition-all hover:scale-105">
+                                    <div class="text-center">
+                                        <div class="text-3xl md:text-4xl mb-2">${weapon.icon}</div>
+                                        <h3 class="font-bold text-sm">${weapon.name}</h3>
+                                        <p class="text-orange-300 text-xs">+${weapon.atk} ATK</p>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Trang bị
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(weapon).replace(/"/g, '&quot;')}, 'weapon'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700"
+                                            >
+                                                💰 ${weapon.price}đ
+                                            </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                            🛡️ SHOP GIÁP
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+                            ${armorShop.map(armor => {
+                                const isEquipped = gameState.player.armor?.name === armor.name;
+                                const isOwned = gameState.player.ownedArmors.some(a => a.name === armor.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-blue-900/50 to-purple-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-blue-500/30'
+                                } hover:border-blue-400 transition-all hover:scale-105">
+                                    <div class="text-center">
+                                        <div class="text-3xl md:text-4xl mb-2">${armor.icon}</div>
+                                        <h3 class="font-bold text-sm">${armor.name}</h3>
+                                        <p class="text-blue-300 text-xs">+${armor.def} DEF</p>
+                                        <p class="text-red-300 text-xs">+${armor.hp} HP</p>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Trang bị
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(armor).replace(/"/g, '&quot;')}, 'armor'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                                            >
+                                                💰 ${armor.price}đ
+                                            </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-4 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                            🐾 SHOP PET
+                        </h2>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+                            ${petShop.map(pet => {
+                                const isEquipped = gameState.player.pet?.name === pet.name;
+                                const isOwned = gameState.player.ownedPets.some(p => p.name === pet.name);
+                                
+                                return `
+                                <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-3 md:p-4 border-2 ${
+                                    isEquipped ? 'border-green-500 ring-2 ring-green-400' : 'border-green-500/30'
+                                } hover:border-green-400 transition-all hover:scale-105">
+                                    <div class="text-center">
+                                        <div class="text-3xl md:text-4xl mb-2">${pet.icon}</div>
+                                        <h3 class="font-bold text-sm">${pet.name}</h3>
+                                        <p class="text-green-300 text-xs">+${pet.atkBonus}% ATK</p>
+                                        ${isEquipped ? `
+                                            <div class="mt-3 w-full py-2 bg-green-600 rounded-lg font-bold text-xs">
+                                                ✓ Đang dùng
+                                            </div>
+                                        ` : isOwned ? `
+                                            <button
+                                                onclick="equipItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet');"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700"
+                                            >
+                                                🔄 Triệu hồi
+                                            </button>
+                                        ` : `
+                                            <button
+                                                onclick="buyItem(${JSON.stringify(pet).replace(/"/g, '&quot;')}, 'pet'); render();"
+                                                class="mt-3 w-full py-2 rounded-lg font-bold text-xs bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+                                            >
+                                                💰 ${pet.price}đ
+                                            </button>
+                                        `}
+                                    </div>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBossView() {
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
+                        👑 BOSS TỰ CHỌN
+                    </h2>
+                    <div class="grid md:grid-cols-2 gap-4 md:gap-6">
+                        <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-2xl p-4 md:p-6 border-2 border-red-500/30">
+                            <div class="text-center mb-4">
+                                <div class="text-5xl md:text-6xl mb-2">🔥</div>
+                                <h3 class="text-xl md:text-2xl font-bold text-red-300">BOSS NGÀY</h3>
+                                <p class="text-sm text-orange-300 mt-2">Phần thưởng x5 Vàng!</p>
+                            </div>
+                            <div class="bg-black/30 rounded-lg p-3 mb-4">
+                                <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.dailyBosses}/2</span></p>
+                            </div>
+                            <button
+                                onclick="startBattle('daily'); render();"
+                                ${gameState.player.dailyBosses <= 0 ? 'disabled' : ''}
+                                class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                                    gameState.player.dailyBosses > 0
+                                        ? 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 hover:scale-105'
+                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                }"
+                            >
+                                ${gameState.player.dailyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
+                            </button>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
+                            <div class="text-center mb-4">
+                                <div class="text-5xl md:text-6xl mb-2">⚡</div>
+                                <h3 class="text-xl md:text-2xl font-bold text-purple-300">BOSS TUẦN</h3>
+                                <p class="text-sm text-pink-300 mt-2">Phần thưởng x10 Vàng!</p>
+                            </div>
+                            <div class="bg-black/30 rounded-lg p-3 mb-4">
+                                <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.weeklyBosses}/3</span></p>
+                            </div>
+                            <button
+                                onclick="startBattle('weekly'); render();"
+                                ${gameState.player.weeklyBosses <= 0 ? 'disabled' : ''}
+                                class="w-full py-4 rounded-xl font-bold text-lg shadow-lg transform transition-all ${
+                                    gameState.player.weeklyBosses > 0
+                                        ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:scale-105'
+                                        : 'bg-gray-600 cursor-not-allowed opacity-50'
+                                }"
+                            >
+                                ${gameState.player.weeklyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAdsView() {
+            const adReward = calculateAdReward();
+            
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+                        📺 XEM QUẢNG CÁO NHẬN THƯỞNG
+                    </h2>
+                    
+                    <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
+                        <p class="text-center text-green-300 text-sm md:text-base">
+                            ✅ <strong>TÍCH HỢP THẬT:</strong> Adsterra.com đã được tích hợp
+                        </p>
+                        <p class="text-center text-green-200 text-xs mt-2">
+                            Số QC đã xem: ${gameState.adsWatched}
+                        </p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút)</h3>
+                            <div class="grid md:grid-cols-3 gap-3 md:gap-4">
+                                ${[
+                                    { type: 'hp', label: '+100 HP', icon: '❤️', color: 'from-red-500 to-pink-600' },
+                                    { type: 'atk', label: '+75 ATK', icon: '⚔️', color: 'from-orange-500 to-red-600' },
+                                    { type: 'def', label: '+10 DEF', icon: '🛡️', color: 'from-blue-500 to-purple-600' }
+                                ].map(boost => {
+                                    const isActive = gameState.adBoosts[boost.type].active && Date.now() < gameState.adBoosts[boost.type].endTime;
+                                    const timeLeft = isActive ? Math.ceil((gameState.adBoosts[boost.type].endTime - Date.now()) / 1000 / 60) : 0;
+                                    
+                                    return `
+                                        <button
+                                            onclick="watchAd('${boost.type}');"
+                                            ${isActive ? 'disabled' : ''}
+                                            class="py-4 rounded-xl font-bold bg-gradient-to-r ${boost.color} hover:scale-105 transform transition-all ${
+                                                isActive ? 'opacity-50 cursor-not-allowed' : ''
+                                            }"
+                                        >
+                                            <div class="text-2xl mb-1">${boost.icon}</div>
+                                            <div>${boost.label}</div>
+                                            ${isActive ? `<div class="text-xs mt-1">⏳ Còn ${timeLeft} phút</div>` : '<div class="text-xs mt-1">📺 Xem QC</div>'}
+                                        </button>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div class="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-4 md:p-6 border-2 border-yellow-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">💰 NHẬN VÀNG</h3>
+                            <div class="grid md:grid-cols-2 gap-3 md:gap-4">
+                                <button
+                                    onclick="watchAd('coin1');"
+                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
+                                >
+                                    <div class="text-2xl mb-1">💰</div>
+                                    <div>+~${adReward}đ</div>
+                                    <div class="text-xs mt-1">(1 QC)</div>
+                                </button>
+                                <button
+                                    onclick="watchAd('coin2');"
+                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
+                                >
+                                    <div class="text-2xl mb-1">💎</div>
+                                    <div>+~${adReward * 2}đ</div>
+                                    <div class="text-xs mt-1">(2 QC)</div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMarketView() {
+            const myListings = DB.getMyListings(gameState.currentUsername);
+            const othersListings = DB.getOthersListings(gameState.currentUsername);
+
+            if (gameState.marketView === 'sell') {
+                // Sell view
+                const sellableWeapons = gameState.player.ownedWeapons.filter(w => gameState.player.weapon?.name !== w.name);
+                const sellableArmors = gameState.player.ownedArmors.filter(a => gameState.player.armor?.name !== a.name);
+                const sellablePets = gameState.player.ownedPets.filter(p => gameState.player.pet?.name !== p.name);
+
+                return `
+                    <div class="max-w-4xl mx-auto">
+                        <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                            🏪 ĐĂNG BÁN ĐỒ
+                        </h2>
+
+                        <button
+                            onclick="gameState.marketView='browse'; render();"
+                            class="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+                        >
+                            ← Quay lại Chợ
+                        </button>
+
+                        ${gameState.selectedItemToSell ? `
+                            <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30 mb-6">
+                                <h3 class="text-xl font-bold mb-4 text-center">Xác nhận giá bán</h3>
+                                <div class="text-center mb-4">
+                                    <div class="text-5xl mb-2">${gameState.selectedItemToSell.item.icon}</div>
+                                    <div class="font-bold text-lg">${gameState.selectedItemToSell.item.name}</div>
+                                </div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-sm font-bold mb-2">Nhập giá bán (đ)</label>
+                                        <input
+                                            type="number"
+                                            id="sellPriceInput"
+                                            value="${gameState.sellPrice}"
+                                            oninput="gameState.sellPrice = this.value; render();"
+                                            placeholder="VD: 500"
+                                            class="w-full px-4 py-3 bg-black/30 border-2 border-purple-500/50 rounded-xl focus:border-pink-500 focus:outline-none text-white"
+                                        />
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <button
+                                            onclick="listItemForSale()"
+                                            class="py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-xl font-bold"
+                                        >
+                                            ✅ Đăng Bán
+                                        </button>
+                                        <button
+                                            onclick="gameState.selectedItemToSell=null; gameState.sellPrice=''; render();"
+                                            class="py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-bold"
+                                        >
+                                            ❌ Hủy
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div class="space-y-6">
+                            ${sellableWeapons.length > 0 ? `
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">⚔️ Vũ Khí Có Thể Bán</h3>
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
+                                        ${sellableWeapons.map(w => `
+                                            <button
+                                                onclick="selectItemToSell(${JSON.stringify(w).replace(/"/g, '&quot;')}, 'weapon')"
+                                                class="bg-orange-900/30 p-3 rounded-lg border-2 border-orange-500/30 hover:border-orange-400 hover:scale-105 transition-all"
+                                            >
+                                                <div class="text-3xl mb-1">${w.icon}</div>
+                                                <div class="text-xs font-bold">${w.name}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${sellableArmors.length > 0 ? `
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">🛡️ Giáp Có Thể Bán</h3>
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
+                                        ${sellableArmors.map(a => `
+                                            <button
+                                                onclick="selectItemToSell(${JSON.stringify(a).replace(/"/g, '&quot;')}, 'armor')"
+                                                class="bg-blue-900/30 p-3 rounded-lg border-2 border-blue-500/30 hover:border-blue-400 hover:scale-105 transition-all"
+                                            >
+                                                <div class="text-3xl mb-1">${a.icon}</div>
+                                                <div class="text-xs font-bold">${a.name}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${sellablePets.length > 0 ? `
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">🐾 Pet Có Thể Bán</h3>
+                                    <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
+                                        ${sellablePets.map(p => `
+                                            <button
+                                                onclick="selectItemToSell(${JSON.stringify(p).replace(/"/g, '&quot;')}, 'pet')"
+                                                class="bg-green-900/30 p-3 rounded-lg border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                                            >
+                                                <div class="text-3xl mb-1">${p.icon}</div>
+                                                <div class="text-xs font-bold">${p.name}</div>
+                                            </button>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${sellableWeapons.length === 0 && sellableArmors.length === 0 && sellablePets.length === 0 ? `
+                                <div class="bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-8 text-center">
+                                    <p class="text-yellow-300">Không có đồ để bán!</p>
+                                    <p class="text-sm text-yellow-200 mt-2">Gỡ trang bị trước khi bán hoặc mua thêm đồ mới.</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Browse view
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                        🏪 CHỢ TRADE THÀNH VIÊN
+                    </h2>
+
+                    <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
+                        <p class="text-center text-green-300 font-bold">
+                            ✅ HOẠT ĐỘNG THẬT - Mua bán tự do giữa các thành viên!
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <!-- My Listings -->
+                        <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">📦 Đồ Của Tôi Đang Bán</h3>
+                            <div class="space-y-2 mb-4">
+                                ${myListings.length === 0 ? 
+                                    '<p class="text-center text-purple-300 py-8">Bạn chưa đăng bán gì</p>' :
+                                    myListings.map(listing => `
+                                        <div class="bg-black/30 p-3 rounded-lg">
+                                            <div class="flex justify-between items-center">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="text-3xl">${listing.item.icon}</div>
+                                                    <div>
+                                                        <div class="font-bold">${listing.item.name}</div>
+                                                        <div class="text-xs text-yellow-400">💰 ${listing.price.toLocaleString()}đ</div>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onclick="removeListing(${listing.id})"
+                                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg text-sm"
+                                                >
+                                                    Gỡ
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                            
+                            <button 
+                                onclick="gameState.marketView='sell'; render();"
+                                class="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 rounded-xl font-bold"
+                            >
+                                ➕ ĐĂNG BÁN ĐỒ
+                            </button>
+                        </div>
+
+                        <!-- Others' Listings -->
+                        <div class="bg-gradient-to-br from-pink-900/50 to-purple-900/50 rounded-xl p-4 md:p-6 border-2 border-pink-500/30">
+                            <h3 class="text-lg md:text-xl font-bold mb-4">🛒 Đồ Đang Bán</h3>
+                            <div class="space-y-2 max-h-96 overflow-y-auto">
+                                ${othersListings.length === 0 ? 
+                                    '<p class="text-center text-pink-300 py-8">Chưa có đồ nào trên chợ</p>' :
+                                    othersListings.map(listing => `
+                                        <div class="bg-black/30 p-3 rounded-lg hover:bg-black/50 transition-all">
+                                            <div class="flex justify-between items-center">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="text-3xl">${listing.item.icon}</div>
+                                                    <div>
+                                                        <div class="font-bold">${listing.item.name}</div>
+                                                        <div class="text-xs text-purple-300">Người bán: ${listing.seller}</div>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onclick="buyFromMarket(${JSON.stringify(listing).replace(/"/g, '&quot;')})"
+                                                    class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-bold"
+                                                >
+                                                    💰 ${listing.price.toLocaleString()}đ
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `).join('')
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderWithdrawView() {
+            return `
+                <div class="max-w-4xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-emerald-500 bg-clip-text text-transparent">
+                        💵 RÚT TIỀN
+                    </h2>
+                    
+                    <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
+                        <p class="text-center text-green-300 font-bold text-sm md:text-base">
+                            ✅ HỆ THỐNG THẬT - Gửi yêu cầu và chờ admin duyệt!
+                        </p>
+                        <p class="text-center text-green-200 text-xs mt-2">
+                            ⚠️ Trong production thật cần tích hợp Payment Gateway hợp pháp
+                        </p>
+                    </div>
+
+                    <div class="grid md:grid-cols-3 gap-3 md:gap-4 mb-6">
+                        ${[
+                            { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '20K' },
+                            { method: 'momo', label: 'MoMo', icon: '📱', min: '20K' },
+                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '10K' }
+                        ].map(item => `
+                            <button
+                                onclick="showWithdrawForm('${item.method}')"
+                                class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-4 md:p-6 border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
+                            >
+                                <div class="text-4xl md:text-5xl mb-2">${item.icon}</div>
+                                <h3 class="font-bold">${item.label}</h3>
+                                <p class="text-sm text-green-300">Min: ${item.min}</p>
+                            </button>
+                        `).join('')}
+                    </div>
+
+                    <div id="withdrawForm" class="hidden"></div>
+                </div>
+            `;
         }
 
         function renderWithdrawHistoryView() {
+            const userRequests = DB.getUserWithdrawRequests(gameState.currentUsername);
+            
             return `
                 <div class="max-w-4xl mx-auto">
                     <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
@@ -1538,66 +1953,68 @@ a<!DOCTYPE html>
                     </h2>
                     
                     <div class="space-y-4">
-                        ${gameState.withdrawHistory.length === 0 ? `
+                        ${userRequests.length === 0 ? `
                             <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-8 border-2 border-purple-500/30 text-center">
                                 <div class="text-6xl mb-4">📭</div>
                                 <p class="text-purple-300">Chưa có lịch sử rút tiền</p>
                             </div>
-                        ` : gameState.withdrawHistory.map(record => `
+                        ` : userRequests.map(req => `
                             <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
                                 <div class="flex justify-between items-start mb-3">
                                     <div>
                                         <div class="font-bold text-lg">
-                                            ${record.method === 'bank' ? '🏦 Ngân Hàng' : record.method === 'momo' ? '📱 MoMo' : '🎫 Thẻ Cào'}
+                                            ${req.method === 'bank' ? '🏦 Ngân Hàng' : req.method === 'momo' ? '📱 MoMo' : '🎫 Thẻ Cào'}
                                         </div>
-                                        <div class="text-sm text-purple-300">${record.date}</div>
+                                        <div class="text-sm text-purple-300">${req.date}</div>
                                     </div>
                                     <div class="text-right">
-                                        <div class="font-bold text-yellow-400 text-xl">${parseInt(record.amount).toLocaleString()}đ</div>
+                                        <div class="font-bold text-yellow-400 text-xl">${req.amount.toLocaleString()}đ</div>
                                         <div class="text-xs px-2 py-1 rounded-full ${
-                                            record.status === 'Hoàn tất' ? 'bg-green-900/50 text-green-300' : 'bg-yellow-900/50 text-yellow-300'
+                                            req.status === 'approved' ? 'bg-green-900/50 text-green-300' :
+                                            req.status === 'rejected' ? 'bg-red-900/50 text-red-300' :
+                                            'bg-yellow-900/50 text-yellow-300'
                                         }">
-                                            ${record.status}
+                                            ${req.status === 'approved' ? '✅ Đã duyệt' : req.status === 'rejected' ? '❌ Từ chối' : '⏳ Chờ xử lý'}
                                         </div>
                                     </div>
                                 </div>
                                 
-                                ${record.method === 'bank' ? `
+                                ${req.method === 'bank' ? `
                                     <div class="grid grid-cols-2 gap-2 text-sm">
                                         <div class="bg-black/30 p-2 rounded">
                                             <div class="text-purple-300">Ngân hàng:</div>
-                                            <div class="font-bold">${record.details.bankName}</div>
+                                            <div class="font-bold">${req.details.bankName}</div>
                                         </div>
                                         <div class="bg-black/30 p-2 rounded">
                                             <div class="text-purple-300">STK:</div>
-                                            <div class="font-bold">${record.details.account}</div>
+                                            <div class="font-bold">${req.details.account}</div>
                                         </div>
                                         <div class="bg-black/30 p-2 rounded col-span-2">
                                             <div class="text-purple-300">Chủ TK:</div>
-                                            <div class="font-bold">${record.details.owner}</div>
+                                            <div class="font-bold">${req.details.owner}</div>
                                         </div>
                                     </div>
-                                ` : record.method === 'momo' ? `
+                                ` : req.method === 'momo' ? `
                                     <div class="grid grid-cols-2 gap-2 text-sm">
                                         <div class="bg-black/30 p-2 rounded">
                                             <div class="text-purple-300">SĐT:</div>
-                                            <div class="font-bold">${record.details.phone}</div>
+                                            <div class="font-bold">${req.details.phone}</div>
                                         </div>
                                         <div class="bg-black/30 p-2 rounded">
                                             <div class="text-purple-300">Tên:</div>
-                                            <div class="font-bold">${record.details.owner}</div>
+                                            <div class="font-bold">${req.details.owner}</div>
                                         </div>
                                     </div>
                                 ` : `
                                     <div class="bg-black/30 p-3 rounded">
-                                        ${record.code ? `
+                                        ${req.cardCode && req.status === 'approved' ? `
                                             <div class="text-sm text-purple-300 mb-1">Mã thẻ:</div>
-                                            <div class="font-mono font-bold text-lg text-green-400 mb-2">${record.code}</div>
+                                            <div class="font-mono font-bold text-lg text-green-400 mb-2">${req.cardCode}</div>
                                             <div class="text-xs text-yellow-200">
                                                 ⚠️ Vui lòng sao chép mã và nạp trong 30 ngày
                                             </div>
                                         ` : `
-                                            <div class="text-yellow-300">⏳ Đang xử lý mã thẻ...</div>
+                                            <div class="text-yellow-300">⏳ Đang chờ admin duyệt...</div>
                                         `}
                                     </div>
                                 `}
@@ -1608,23 +2025,136 @@ a<!DOCTYPE html>
             `;
         }
 
+        function renderAdminView() {
+            const allUsers = DB.getAllUsers();
+            const allRequests = DB.getAllWithdrawRequests();
+            const allListings = DB.getAllMarketListings();
+            const pendingRequests = allRequests.filter(r => r.status === 'pending');
+
+            return `
+                <div class="max-w-6xl mx-auto">
+                    <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
+                        👑 ADMIN PANEL
+                    </h2>
+
+                    <!-- Stats Overview -->
+                    <div class="grid md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-gradient-to-br from-blue-900/50 to-cyan-900/50 rounded-xl p-4 border-2 border-blue-500/30">
+                            <div class="text-3xl mb-2">👥</div>
+                            <div class="text-sm text-blue-300">Tổng User</div>
+                            <div class="text-2xl font-bold">${Object.keys(allUsers).length}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-4 border-2 border-yellow-500/30">
+                            <div class="text-3xl mb-2">⏳</div>
+                            <div class="text-sm text-yellow-300">Yêu cầu chờ</div>
+                            <div class="text-2xl font-bold">${pendingRequests.length}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-green-900/50 to-emerald-900/50 rounded-xl p-4 border-2 border-green-500/30">
+                            <div class="text-3xl mb-2">🏪</div>
+                            <div class="text-sm text-green-300">Đồ trên chợ</div>
+                            <div class="text-2xl font-bold">${allListings.length}</div>
+                        </div>
+                        <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-xl p-4 border-2 border-purple-500/30">
+                            <div class="text-3xl mb-2">📊</div>
+                            <div class="text-sm text-purple-300">Tổng yêu cầu</div>
+                            <div class="text-2xl font-bold">${allRequests.length}</div>
+                        </div>
+                    </div>
+
+                    <!-- Withdraw Requests -->
+                    <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-6 border-2 border-purple-500/30">
+                        <h3 class="text-xl font-bold mb-4">💵 YÊU CẦU RÚT TIỀN</h3>
+                        <div class="space-y-3">
+                            ${allRequests.length === 0 ? `
+                                <p class="text-center text-purple-300 py-8">Chưa có yêu cầu nào</p>
+                            ` : allRequests.map(req => `
+                                <div class="bg-black/30 p-4 rounded-lg border border-purple-500/30">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <div>
+                                            <div class="font-bold">
+                                                ${req.method === 'bank' ? '🏦' : req.method === 'momo' ? '📱' : '🎫'} 
+                                                ${req.username}
+                                            </div>
+                                            <div class="text-sm text-purple-300">${req.date}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="font-bold text-yellow-400 text-lg">${req.amount.toLocaleString()}đ</div>
+                                            <div class="text-xs px-2 py-1 rounded-full ${
+                                                req.status === 'approved' ? 'bg-green-900/50 text-green-300' :
+                                                req.status === 'rejected' ? 'bg-red-900/50 text-red-300' :
+                                                'bg-yellow-900/50 text-yellow-300'
+                                            }">
+                                                ${req.status === 'approved' ? '✅ Đã duyệt' : req.status === 'rejected' ? '❌ Từ chối' : '⏳ Chờ'}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    ${req.method === 'bank' ? `
+                                        <div class="text-sm mb-3">
+                                            <div>• ${req.details.bankName}</div>
+                                            <div>• STK: ${req.details.account}</div>
+                                            <div>• Tên: ${req.details.owner}</div>
+                                        </div>
+                                    ` : req.method === 'momo' ? `
+                                        <div class="text-sm mb-3">
+                                            <div>• SĐT: ${req.details.phone}</div>
+                                            <div>• Tên: ${req.details.owner}</div>
+                                        </div>
+                                    ` : `
+                                        <div class="text-sm mb-3">
+                                            <div>• Mệnh giá: ${req.amount.toLocaleString()}đ</div>
+                                            ${req.cardCode ? `<div>• Mã: ${req.cardCode}</div>` : ''}
+                                        </div>
+                                    `}
+
+                                    ${req.status === 'pending' ? `
+                                        <div class="flex gap-2">
+                                            <button
+                                                onclick="approveWithdraw(${req.id})"
+                                                class="flex-1 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm"
+                                            >
+                                                ✅ Duyệt
+                                            </button>
+                                            <button
+                                                onclick="rejectWithdraw(${req.id})"
+                                                class="flex-1 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-sm"
+                                            >
+                                                ❌ Từ chối
+                                            </button>
+                                            <button
+                                                onclick="deleteWithdraw(${req.id})"
+                                                class="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-bold text-sm"
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    ` : `
+                                        <button
+                                            onclick="deleteWithdraw(${req.id})"
+                                            class="w-full py-2 bg-gray-600 hover:bg-gray-700 rounded-lg font-bold text-sm"
+                                        >
+                                            🗑️ Xóa
+                                        </button>
+                                    `}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         // ==================== MAIN RENDER ====================
         function render() {
             const root = document.getElementById('root');
             
-            if (!gameState.gameStarted) {
-                root.innerHTML = renderCharacterCreation();
-                
-                const nameInput = document.getElementById('playerNameInput');
-                if (nameInput) {
-                    nameInput.addEventListener('input', () => {
-                        gameState.nameError = '';
-                    });
-                }
+            if (!gameState.isLoggedIn) {
+                root.innerHTML = renderAuthScreen();
                 return;
             }
 
             const stats = getTotalStats();
+            const isAdmin = DB.isAdmin(gameState.currentUsername);
 
             root.innerHTML = `
                 <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
@@ -1634,12 +2164,12 @@ a<!DOCTYPE html>
                             <div class="flex items-center justify-between flex-wrap gap-3 md:gap-4">
                                 <div>
                                     <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
-                                        👤 ${gameState.player.name}
+                                        👤 ${gameState.player.name} ${isAdmin ? '👑' : ''}
                                     </h1>
                                     <p class="text-xs md:text-sm text-purple-300">Level ${gameState.player.level} • Ải ${gameState.player.currentStage}</p>
                                 </div>
                                 
-                                <div class="flex gap-2 md:gap-4 flex-wrap">
+                                <div class="flex gap-2 md:gap-4 flex-wrap items-center">
                                     <div class="bg-black/30 px-3 md:px-4 py-2 rounded-lg border border-yellow-500/30">
                                         <div class="flex items-center gap-2">
                                             <span class="text-xl md:text-2xl">💰</span>
@@ -1653,6 +2183,13 @@ a<!DOCTYPE html>
                                             <span class="font-bold text-sm md:text-base">${gameState.player.exp}/${gameState.player.level * 100}</span>
                                         </div>
                                     </div>
+
+                                    <button
+                                        onclick="handleLogout()"
+                                        class="px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-xs md:text-sm"
+                                    >
+                                        🚪 Đăng xuất
+                                    </button>
                                 </div>
                             </div>
 
@@ -1691,15 +2228,16 @@ a<!DOCTYPE html>
                         <div class="max-w-7xl mx-auto px-2 md:px-4">
                             <div class="flex gap-1 md:gap-2 overflow-x-auto py-2 scrollbar-hide">
                                 ${[
-                                    { id: 'game', label: '⚔️ Chiến Đấu', short: '⚔️' },
-                                    { id: 'upgrade', label: '⬆️ Nâng Cấp', short: '⬆️' },
-                                    { id: 'shop', label: '🛒 Cửa Hàng', short: '🛒' },
-                                    { id: 'boss', label: '👑 Boss', short: '👑' },
-                                    { id: 'ads', label: '📺 Quảng Cáo', short: '📺' },
-                                    { id: 'market', label: '🏪 Chợ', short: '🏪' },
-                                    { id: 'withdraw', label: '💵 Rút Tiền', short: '💵' },
-                                    { id: 'withdraw-history', label: '📜 Lịch Sử', short: '📜' },
-                                ].map(nav => `
+                                    { id: 'game', label: '⚔️ Chiến Đấu', short: '⚔️', admin: false },
+                                    { id: 'upgrade', label: '⬆️ Nâng Cấp', short: '⬆️', admin: false },
+                                    { id: 'shop', label: '🛒 Cửa Hàng', short: '🛒', admin: false },
+                                    { id: 'boss', label: '👑 Boss', short: '👑', admin: false },
+                                    { id: 'ads', label: '📺 Quảng Cáo', short: '📺', admin: false },
+                                    { id: 'market', label: '🏪 Chợ', short: '🏪', admin: false },
+                                    { id: 'withdraw', label: '💵 Rút Tiền', short: '💵', admin: false },
+                                    { id: 'withdraw-history', label: '📜 Lịch Sử', short: '📜', admin: false },
+                                    { id: 'admin', label: '👑 Admin', short: '👑', admin: true },
+                                ].filter(nav => !nav.admin || isAdmin).map(nav => `
                                     <button
                                         onclick="gameState.currentView = '${nav.id}'; render();"
                                         class="px-2 md:px-4 py-2 rounded-lg font-bold whitespace-nowrap transition-all text-xs md:text-sm ${
@@ -1726,12 +2264,13 @@ a<!DOCTYPE html>
                         ${gameState.currentView === 'market' ? renderMarketView() : ''}
                         ${gameState.currentView === 'withdraw' ? renderWithdrawView() : ''}
                         ${gameState.currentView === 'withdraw-history' ? renderWithdrawHistoryView() : ''}
+                        ${gameState.currentView === 'admin' && isAdmin ? renderAdminView() : ''}
                     </div>
 
                     <!-- Footer -->
                     <div class="bg-black/50 border-t border-purple-500/30 mt-8 py-4">
                         <p class="text-center text-purple-300 text-xs md:text-sm">
-                            ⚔️ GAME ONLINE • Made with ❤️ • Demo Version
+                            ⚔️ GAME RPG ONLINE • FULL VERSION • Made with ❤️
                         </p>
                     </div>
                 </div>
@@ -1740,50 +2279,27 @@ a<!DOCTYPE html>
 
         // ==================== INITIALIZATION ====================
         function init() {
-            const savedState = loadGameState();
-            if (savedState && savedState.name) {
-                gameState.player = savedState;
-                gameState.gameStarted = true;
-                
-                // ✅ Đảm bảo backward compatibility với save cũ
-                if (!gameState.player.ownedWeapons) {
-                    gameState.player.ownedWeapons = [];
-                    // Nếu đang có weapon, thêm vào owned
-                    if (gameState.player.weapon) {
-                        gameState.player.ownedWeapons.push(gameState.player.weapon);
-                    }
+            // Check if already logged in
+            const currentUser = DB.getCurrentUser();
+            if (currentUser) {
+                const playerData = DB.getPlayerData(currentUser);
+                if (playerData) {
+                    gameState.isLoggedIn = true;
+                    gameState.currentUsername = currentUser;
+                    gameState.player = playerData;
+                    
+                    setTimeout(() => {
+                        if (!gameState.isInBattle && gameState.currentView === 'game') {
+                            startBattle();
+                        }
+                    }, 500);
                 }
-                if (!gameState.player.ownedArmors) {
-                    gameState.player.ownedArmors = [];
-                    if (gameState.player.armor) {
-                        gameState.player.ownedArmors.push(gameState.player.armor);
-                    }
-                }
-                if (!gameState.player.ownedPets) {
-                    gameState.player.ownedPets = [];
-                    if (gameState.player.pet) {
-                        gameState.player.ownedPets.push(gameState.player.pet);
-                    }
-                }
-                saveGame(); // Lưu lại để cập nhật format mới
-            }
-
-            const savedHistory = localStorage.getItem('rpgWithdrawHistory');
-            if (savedHistory) {
-                try {
-                    gameState.withdrawHistory = JSON.parse(savedHistory);
-                } catch (e) {}
-            }
-
-            const savedAutoFight = localStorage.getItem('rpgAutoFight');
-            if (savedAutoFight) {
-                try {
-                    gameState.autoFight = JSON.parse(savedAutoFight);
-                } catch (e) {}
             }
 
             // Check daily/weekly reset
             setInterval(() => {
+                if (!gameState.player) return;
+                
                 const now = Date.now();
                 const dayMs = 24 * 60 * 60 * 1000;
                 const weekMs = 7 * dayMs;
@@ -1809,15 +2325,6 @@ a<!DOCTYPE html>
             }, 60000);
 
             render();
-
-            // ✅ AUTO SPAWN QUÁI KHI LOAD GAME HOẶC KHI Ở MÀN HÌNH GAME
-            if (gameState.gameStarted && !gameState.isInBattle && gameState.currentView === 'game') {
-                setTimeout(() => {
-                    if (!gameState.isInBattle && gameState.currentView === 'game') {
-                        startBattle();
-                    }
-                }, 500);
-            }
         }
 
         // Start game
