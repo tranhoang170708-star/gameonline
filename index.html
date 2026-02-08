@@ -447,6 +447,15 @@
             gameState.autoFight = !gameState.autoFight;
             saveGame();
             render();
+            
+            // ✅ Nếu bật auto và không đang đánh, spawn quái ngay
+            if (gameState.autoFight && !gameState.isInBattle && gameState.currentView === 'game') {
+                setTimeout(() => {
+                    if (!gameState.isInBattle && gameState.currentView === 'game') {
+                        startBattle();
+                    }
+                }, 500);
+            }
         }
 
         // ==================== SHOP FUNCTIONS ====================
@@ -710,14 +719,16 @@
                                 </p>
                                 ${gameState.autoFight ? `
                                     <div class="bg-green-900/30 border border-green-500/50 rounded-lg p-3">
-                                        <p class="text-green-300 text-sm">⚡ Chế độ tự động đang BẬT</p>
-                                        <p class="text-xs text-green-200 mt-1">Quái mới sẽ tự động spawn sau ${gameState.player.hp < stats.totalHp ? '2' : '1.5'} giây</p>
+                                        <p class="text-green-300 text-sm animate-pulse">⚡ Đang tự động spawn quái...</p>
+                                        <p class="text-xs text-green-200 mt-1">Quái mới sẽ xuất hiện sau 1.5 giây</p>
                                     </div>
                                 ` : `
-                                    <div class="bg-yellow-900/30 border border-yellow-500/50 rounded-lg p-3">
-                                        <p class="text-yellow-300 text-sm">⏳ Đang spawn quái mới...</p>
-                                        <p class="text-xs text-yellow-200 mt-1">Quái sẽ tự động xuất hiện ngay</p>
-                                    </div>
+                                    <button 
+                                        onclick="startBattle(); render();"
+                                        class="w-full py-4 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all"
+                                    >
+                                        ⚔️ BẮT ĐẦU CHIẾN ĐẤU
+                                    </button>
                                 `}
                             </div>
                         ` : `
@@ -1658,6 +1669,15 @@
             }, 60000);
 
             render();
+
+            // ✅ AUTO SPAWN QUÁI KHI LOAD GAME HOẶC KHI Ở MÀN HÌNH GAME
+            if (gameState.gameStarted && !gameState.isInBattle && gameState.currentView === 'game') {
+                setTimeout(() => {
+                    if (!gameState.isInBattle && gameState.currentView === 'game') {
+                        startBattle();
+                    }
+                }, 500);
+            }
         }
 
         // Start game
