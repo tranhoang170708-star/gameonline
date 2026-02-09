@@ -1004,8 +1004,12 @@ function monsterAttack() {
         }
 
         async function handleDefeat() {
-            addLog('💀 Bạn đã thua! -20% vàng', 'error');
-            gameState.player.gold = Math.floor(gameState.player.gold * 0.2);
+            // Trừ 10% vàng
+            const goldLost = Math.floor(gameState.player.gold * 0.1);
+            gameState.player.gold = Math.max(0, gameState.player.gold - goldLost);
+            
+            addLog(`💀 Bạn đã thua! -${goldLost} vàng (10%)`, 'error');
+            
             gameState.player.hp = gameState.player.maxHp;
             await saveGame();
             gameState.isInBattle = false;
