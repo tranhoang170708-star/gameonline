@@ -979,13 +979,13 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 1500);
+                }, 100);
             }
         }
 
         async function handleDefeat() {
-            addLog('💀 Bạn đã thua! -50% vàng', 'error');
-            gameState.player.gold = Math.floor(gameState.player.gold * 0.5);
+            addLog('💀 Bạn đã thua! -10% vàng', 'error');
+            gameState.player.gold = Math.floor(gameState.player.gold * 0.1);
             gameState.player.hp = gameState.player.maxHp;
             await saveGame();
             gameState.isInBattle = false;
@@ -996,7 +996,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 2000);
+                }, 200);
             }
         }
 
@@ -1145,16 +1145,16 @@
             const { item, type } = gameState.selectedItemToSell;
 
             if (type === 'weapon') {
-                gameState.player.ownedWeapons = gameState.player.ownedWeapons.filter(w => w.name !== item.name);
+                gameState.player.ownedWeapons = (gameState.player.ownedWeapons || []).filter(w => w.name !== item.name);
             } else if (type === 'armor') {
-                gameState.player.ownedArmors = gameState.player.ownedArmors.filter(a => a.name !== item.name);
+                gameState.player.ownedArmors = (gameState.player.ownedArmors || []).filter(a => a.name !== item.name);
             } else if (type === 'pet') {
-                gameState.player.ownedPets = gameState.player.ownedPets.filter(p => p.name !== item.name);
+                gameState.player.ownedPets = (gameState.player.ownedPets || []).filter(p => p.name !== item.name);
             }
 
             await DB.addMarketListing(gameState.currentUsername, item, type, price);
             
-            saveGame();
+            await saveGame();
             gameState.selectedItemToSell = null;
             gameState.sellPrice = '';
             gameState.marketView = 'browse';
@@ -1632,7 +1632,7 @@
                                 <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
                                     GAME RPG ONLINE
                                 </h1>
-                                <p class="text-purple-300">🔥 Firebase Cloud Version</p>
+                                <p class="text-purple-300">By Duc Quyet Development</p>
                             </div>
 
                             <div class="space-y-4">
@@ -2197,25 +2197,32 @@
         }
 
         async function renderMarketView() {
-            const myListings = await DB.getMyListings(gameState.currentUsername);
-            const othersListings = await DB.getOthersListings(gameState.currentUsername);
+            try {
+                const myListings = await DB.getMyListings(gameState.currentUsername);
+                const othersListings = await DB.getOthersListings(gameState.currentUsername);
 
-            if (gameState.marketView === 'sell') {
-                const sellableWeapons = gameState.player.ownedWeapons.filter(w => gameState.player.weapon?.name !== w.name);
-                const sellableArmors = gameState.player.ownedArmors.filter(a => gameState.player.armor?.name !== a.name);
-                const sellablePets = gameState.player.ownedPets.filter(p => gameState.player.pet?.name !== p.name);
+                if (gameState.marketView === 'sell') {
+                    console.log('📦 Rendering sell view...', {
+                        ownedWeapons: gameState.player.ownedWeapons,
+                        ownedArmors: gameState.player.ownedArmors,
+                        ownedPets: gameState.player.ownedPets
+                    });
+                    
+                    const sellableWeapons = (gameState.player.ownedWeapons || []).filter(w => gameState.player.weapon?.name !== w.name);
+                    const sellableArmors = (gameState.player.ownedArmors || []).filter(a => gameState.player.armor?.name !== a.name);
+                    const sellablePets = (gameState.player.ownedPets || []).filter(p => gameState.player.pet?.name !== p.name);
 
-                return `
-                    <div class="max-w-4xl mx-auto">
-                        <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
-                            🏪 ĐĂNG BÁN ĐỒ
-                        </h2>
+                    return `
+                        <div class="max-w-4xl mx-auto">
+                            <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">
+                                🏪 ĐĂNG BÁN ĐỒ
+                            </h2>
 
-                        <button
-                            onclick="gameState.marketView='browse'; render();"
-                            class="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
-                        >
-                            ← Quay lại Chợ
+                            <button
+                                onclick="gameState.marketView='browse'; render();"
+                                class="mb-4 px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+                            >
+                                ← Quay lại Chợ
                         </button>
 
                         ${gameState.selectedItemToSell ? `
@@ -2359,7 +2366,7 @@
                             </div>
                             
                             <button 
-                                onclick="gameState.marketView='sell'; render();"
+                                onclick="console.log('🛒 Clicked Đăng Bán Đồ'); gameState.marketView='sell'; render();"
                                 class="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 rounded-xl font-bold"
                             >
                                 ➕ ĐĂNG BÁN ĐỒ
@@ -2396,6 +2403,10 @@
                     </div>
                 </div>
             `;
+            } catch (error) {
+                console.error("❌ Error in renderMarketView:", error);
+                return `<div class="text-center text-red-400 p-8">Lỗi hiển thị chợ: ${error.message}</div>`;
+            }
         }
 
         function renderWithdrawView() {
@@ -2766,7 +2777,9 @@
             } else if (gameState.currentView === 'ads') {
                 viewContent = renderAdsView();
             } else if (gameState.currentView === 'market') {
+                console.log('🏪 Rendering market, marketView:', gameState.marketView);
                 viewContent = await renderMarketView();
+                console.log('📦 Market content length:', viewContent?.length);
             } else if (gameState.currentView === 'withdraw') {
                 viewContent = renderWithdrawView();
             } else if (gameState.currentView === 'withdraw-history') {
@@ -2889,7 +2902,7 @@
                     <!-- Footer -->
                     <div class="bg-black/50 border-t border-purple-500/30 mt-8 py-4">
                         <p class="text-center text-purple-300 text-xs md:text-sm">
-                            ⚔️ GAME RPG ONLINE • FIREBASE VERSION • Made with ❤️
+                            ⚔️ GAME RPG ONLINE • Made with Duc Quyet Development
                         </p>
                         <p class="text-center text-purple-400 text-xs mt-1">
                             Hỗ trợ: <a href="https://t.me/NQ_CTV" target="_blank" class="text-blue-400 hover:text-blue-300 underline">@NQ_CTV</a>
