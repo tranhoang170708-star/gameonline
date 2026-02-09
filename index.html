@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚔️ GAME ONLINE - RPG Phiêu Lưu </title>
+    <title>⚔️ GAME ONLINE - RPG Phiêu Lưu [FIREBASE VERSION]</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -161,7 +161,7 @@
             messagingSenderId: "788942574263",
             appId: "1:788942574263:web:ef450c3d0cf72afd317332",
             measurementId: "G-7T72ZT3V8R",
-            databaseURL: "https://myrpggame-5adb9-default-rtdb.asia-southeast1.firebasedatabase.app/"
+            databaseURL: "https://myrpggame-5adb9-default-rtdb.firebaseio.com/"
         };
 
         // Initialize Firebase
@@ -979,7 +979,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 300);
+                }, 1500);
             }
         }
 
@@ -996,7 +996,7 @@
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
                         startBattle();
                     }
-                }, 300);
+                }, 2000);
             }
         }
 
@@ -1104,7 +1104,22 @@
             return true;
         }
 
-        function selectItemToSell(item, type) {
+        function selectItemToSell(itemName, type) {
+            // Tìm item từ tên
+            let item = null;
+            if (type === 'weapon') {
+                item = (gameState.player.ownedWeapons || []).find(w => w.name === itemName);
+            } else if (type === 'armor') {
+                item = (gameState.player.ownedArmors || []).find(a => a.name === itemName);
+            } else if (type === 'pet') {
+                item = (gameState.player.ownedPets || []).find(p => p.name === itemName);
+            }
+            
+            if (!item) {
+                alert('Không tìm thấy vật phẩm!');
+                return;
+            }
+            
             if (!canSellItem(item, type)) {
                 alert('Không thể bán đồ đang trang bị! Vui lòng tháo ra trước.');
                 return;
@@ -1148,7 +1163,17 @@
             render();
         }
 
-        async function buyFromMarket(listing) {
+        async function buyFromMarket(listingId) {
+            // Tìm listing từ ID
+            const allListings = await DB.getAllMarketListings();
+            const listing = allListings.find(l => l.id === listingId);
+            
+            if (!listing) {
+                alert('Không tìm thấy sản phẩm!');
+                render();
+                return;
+            }
+            
             if (gameState.player.gold < listing.price) {
                 alert('Không đủ vàng để mua!');
                 return;
@@ -1158,10 +1183,13 @@
 
             const { item, type } = listing;
             if (type === 'weapon') {
+                if (!gameState.player.ownedWeapons) gameState.player.ownedWeapons = [];
                 gameState.player.ownedWeapons.push(item);
             } else if (type === 'armor') {
+                if (!gameState.player.ownedArmors) gameState.player.ownedArmors = [];
                 gameState.player.ownedArmors.push(item);
             } else if (type === 'pet') {
+                if (!gameState.player.ownedPets) gameState.player.ownedPets = [];
                 gameState.player.ownedPets.push(item);
             }
 
@@ -1316,9 +1344,21 @@
                 };
             }
 
-            await DB.addWithdrawRequest(gameState.currentUsername, method, parseInt(formData.amount), formData);
+            const withdrawAmount = parseInt(formData.amount);
             
-            alert(`✅ Yêu cầu rút ${parseInt(formData.amount).toLocaleString()}đ đã được gửi!\n\nVui lòng chờ admin duyệt.`);
+            // KIỂM TRA SỐ DƯ
+            if (gameState.player.gold < withdrawAmount) {
+                alert(`❌ Không đủ tiền!\n\nSố dư hiện tại: ${gameState.player.gold.toLocaleString()}đ\nSố tiền muốn rút: ${withdrawAmount.toLocaleString()}đ`);
+                return;
+            }
+            
+            // TRỪ TIỀN NGAY KHI TẠO YÊU CẦU RÚT
+            gameState.player.gold -= withdrawAmount;
+            await saveGame();
+
+            await DB.addWithdrawRequest(gameState.currentUsername, method, withdrawAmount, formData);
+            
+            alert(`✅ Yêu cầu rút ${withdrawAmount.toLocaleString()}đ đã được gửi!\n\nSố dư còn lại: ${gameState.player.gold.toLocaleString()}đ\n\nVui lòng chờ admin duyệt.`);
             gameState.currentView = 'withdraw-history';
             document.getElementById('withdrawForm').classList.add('hidden');
             render();
@@ -1431,15 +1471,43 @@
         }
 
         async function rejectWithdraw(requestId) {
-            if (confirm('Xác nhận từ chối yêu cầu này?')) {
+            if (confirm('Xác nhận từ chối yêu cầu này? Tiền sẽ được hoàn lại cho user.')) {
+                // Lấy thông tin yêu cầu
+                const allRequests = await DB.getAllWithdrawRequests();
+                const request = allRequests.find(r => r.id === requestId);
+                
+                if (request && request.status === 'pending') {
+                    // HOÀN TIỀN CHO USER
+                    const userData = await DB.getPlayerData(request.username);
+                    if (userData) {
+                        userData.gold += request.amount;
+                        await DB.savePlayerData(request.username, userData);
+                        console.log(`💰 Đã hoàn ${request.amount}đ cho ${request.username}`);
+                    }
+                }
+                
                 await DB.updateWithdrawStatus(requestId, 'rejected');
-                addLog('❌ Đã từ chối yêu cầu rút tiền!', 'error');
+                addLog('❌ Đã từ chối yêu cầu rút tiền và hoàn lại tiền!', 'error');
                 render();
             }
         }
 
         async function deleteWithdraw(requestId) {
-            if (confirm('Xóa yêu cầu này khỏi danh sách?')) {
+            if (confirm('Xóa yêu cầu này khỏi danh sách? Nếu đang pending, tiền sẽ được hoàn lại.')) {
+                // Lấy thông tin yêu cầu trước khi xóa
+                const allRequests = await DB.getAllWithdrawRequests();
+                const request = allRequests.find(r => r.id === requestId);
+                
+                if (request && request.status === 'pending') {
+                    // HOÀN TIỀN CHO USER NẾU ĐÃ BỊ TRỪ
+                    const userData = await DB.getPlayerData(request.username);
+                    if (userData) {
+                        userData.gold += request.amount;
+                        await DB.savePlayerData(request.username, userData);
+                        console.log(`💰 Đã hoàn ${request.amount}đ cho ${request.username}`);
+                    }
+                }
+                
                 await DB.deleteWithdrawRequest(requestId);
                 addLog('🗑️ Đã xóa yêu cầu!', 'info');
                 render();
@@ -1564,7 +1632,7 @@
                                 <h1 class="text-4xl md:text-5xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-500 bg-clip-text text-transparent">
                                     GAME RPG ONLINE
                                 </h1>
-                                <p class="text-purple-300">🔥By Duc Quyet Development </p>
+                                <p class="text-purple-300">🔥 Firebase Cloud Version</p>
                             </div>
 
                             <div class="space-y-4">
@@ -2194,7 +2262,7 @@
                                     <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
                                         ${sellableWeapons.map(w => `
                                             <button
-                                                onclick="selectItemToSell(${JSON.stringify(w).replace(/"/g, '&quot;')}, 'weapon')"
+                                                onclick="selectItemToSell('${w.name}', 'weapon')"
                                                 class="bg-orange-900/30 p-3 rounded-lg border-2 border-orange-500/30 hover:border-orange-400 hover:scale-105 transition-all"
                                             >
                                                 <div class="text-3xl mb-1">${w.icon}</div>
@@ -2211,7 +2279,7 @@
                                     <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
                                         ${sellableArmors.map(a => `
                                             <button
-                                                onclick="selectItemToSell(${JSON.stringify(a).replace(/"/g, '&quot;')}, 'armor')"
+                                                onclick="selectItemToSell('${a.name}', 'armor')"
                                                 class="bg-blue-900/30 p-3 rounded-lg border-2 border-blue-500/30 hover:border-blue-400 hover:scale-105 transition-all"
                                             >
                                                 <div class="text-3xl mb-1">${a.icon}</div>
@@ -2228,7 +2296,7 @@
                                     <div class="grid grid-cols-3 md:grid-cols-5 gap-3">
                                         ${sellablePets.map(p => `
                                             <button
-                                                onclick="selectItemToSell(${JSON.stringify(p).replace(/"/g, '&quot;')}, 'pet')"
+                                                onclick="selectItemToSell('${p.name}', 'pet')"
                                                 class="bg-green-900/30 p-3 rounded-lg border-2 border-green-500/30 hover:border-green-400 hover:scale-105 transition-all"
                                             >
                                                 <div class="text-3xl mb-1">${p.icon}</div>
@@ -2314,7 +2382,7 @@
                                                     </div>
                                                 </div>
                                                 <button 
-                                                    onclick="buyFromMarket(${JSON.stringify(listing).replace(/"/g, '&quot;')})"
+                                                    onclick="buyFromMarket(${listing.id})"
                                                     class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-bold"
                                                 >
                                                     💰 ${listing.price.toLocaleString()}đ
@@ -2821,7 +2889,7 @@
                     <!-- Footer -->
                     <div class="bg-black/50 border-t border-purple-500/30 mt-8 py-4">
                         <p class="text-center text-purple-300 text-xs md:text-sm">
-                            ⚔️ GAME RPG ONLINE •  Made with Duc Quyet Development
+                            ⚔️ GAME RPG ONLINE • FIREBASE VERSION • Made with ❤️
                         </p>
                         <p class="text-center text-purple-400 text-xs mt-1">
                             Hỗ trợ: <a href="https://t.me/NQ_CTV" target="_blank" class="text-blue-400 hover:text-blue-300 underline">@NQ_CTV</a>
