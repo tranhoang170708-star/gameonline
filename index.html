@@ -635,8 +635,17 @@
 
         // ==================== AD SMART LINK FUNCTION ====================
         function openSmartLink() {
-            // Mở Smart Link trong tab/window mới
-            window.open('https://semicolondriverelevated.com/s9ae0s1p?key=bda893f9d0a68097bed549b6d4b78214', '_blank');
+            // 1. Mở Smart Link tab mới
+            window.open(
+                'https://semicolondriverelevated.com/s9ae0s1p?key=bda893f9d0a68097bed549b6d4b78214',
+                '_blank'
+            );
+        
+            // 2. Load Popunder script động (tránh chạy trước khi click)
+            const popunder = document.createElement('script');
+            popunder.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
+            popunder.async = true;
+            document.head.appendChild(popunder);
         }
 
         // ==================== AUTH FUNCTIONS ====================
