@@ -1307,6 +1307,14 @@
                 if (type === 'hp' || type === 'atk' || type === 'def') {
                     const endTime = Date.now() + 10 * 60 * 1000; // 10 PHÚT
                     gameState.adBoosts[type] = { active: true, endTime };
+                    
+                    // NẾU LÀ BUFF HP, CỘNG LUÔN 100 HP HIỆN TẠI
+                    if (type === 'hp') {
+                        const stats = getTotalStats(); // Lấy maxHp mới (đã + 100)
+                        gameState.player.hp = Math.min(gameState.player.hp + 100, stats.totalHp);
+                        saveGame();
+                    }
+                    
                     addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
                 } else if (type === 'coin1') {
                     const bonus = calculateAdReward();
@@ -3040,6 +3048,16 @@
                 ['hp', 'atk', 'def'].forEach(type => {
                     if (gameState.adBoosts[type].active && now >= gameState.adBoosts[type].endTime) {
                         gameState.adBoosts[type].active = false;
+                        
+                        // KHI BUFF HP HẾT HẠN, ĐIỀU CHỈNH MÁU HIỆN TẠI
+                        if (type === 'hp' && gameState.player) {
+                            const stats = getTotalStats(); // Lấy maxHp mới (không còn +100)
+                            if (gameState.player.hp > stats.totalHp) {
+                                gameState.player.hp = stats.totalHp;
+                                saveGame();
+                            }
+                        }
+                        
                         needUpdate = true;
                     }
                 });
