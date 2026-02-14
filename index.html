@@ -1626,8 +1626,8 @@
                     return;
                 }
 
-                if (parseInt(formData.amount) < 20000) {
-                    alert('Số tiền tối thiểu là 20,000đ');
+                if (parseInt(formData.amount) < 50000) {
+                    alert('Số tiền tối thiểu là 50,000đ');
                     return;
                 }
             } else if (method === 'momo') {
@@ -1642,8 +1642,8 @@
                     return;
                 }
 
-                if (parseInt(formData.amount) < 20000) {
-                    alert('Số tiền tối thiểu là 20,000đ');
+                if (parseInt(formData.amount) < 50000) {
+                    alert('Số tiền tối thiểu là 50,000đ');
                     return;
                 }
             } else if (method === 'card') {
@@ -2901,7 +2901,7 @@
                         ${[
                             { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '50K' },
                             { method: 'momo', label: 'MoMo', icon: '📱', min: '50K' },
-                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '20K' }
+                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '10K' }
                         ].map(item => `
                             <button
                                 onclick="showWithdrawForm('${item.method}')"
