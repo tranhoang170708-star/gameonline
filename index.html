@@ -674,16 +674,10 @@
             const password = document.getElementById('loginPassword').value;
 
             const result = await DB.loginUser(username, password);
-            const stats = getTotalStats();
-            if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
-                gameState.player.hp = stats.totalHp;
-                needSave = true;
-            }
             
             if (result.success) {
                 gameState.isLoggedIn = true;
                 gameState.currentUsername = username;
-                gameState.player = result.userData;
                 gameState.authError = '';
                 
                 let needSave = false;
@@ -737,6 +731,11 @@
                 gameState.authError = result.message;
                 render();
             }
+            const stats = getTotalStats();
+                if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
+                    gameState.player.hp = stats.totalHp;
+                    needSave = true;
+                }
         }
 
         function handleLogout() {
