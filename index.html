@@ -223,46 +223,6 @@
             return false;
         });
 
-        // Phát hiện khi DevTools được mở (dựa vào kích thước window)
-        const devToolsCheck = setInterval(function() {
-            const widthThreshold = window.outerWidth - window.innerWidth > 160;
-            const heightThreshold = window.outerHeight - window.innerHeight > 160;
-            
-            if (widthThreshold || heightThreshold) {
-                console.clear();
-                document.body.innerHTML = `
-                    <div style="
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        height: 100vh;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        font-family: Arial, sans-serif;
-                        text-align: center;
-                        flex-direction: column;
-                    ">
-                        <div style="font-size: 80px; margin-bottom: 20px;">🚫</div>
-                        <h1 style="font-size: 48px; margin: 0 0 20px 0;">Developer Tools Detected!</h1>
-                        <p style="font-size: 24px; margin: 0 0 30px 0;">Vui lòng đóng Developer Tools để tiếp tục</p>
-                        <button onclick="location.reload()" style="
-                            padding: 15px 40px;
-                            font-size: 18px;
-                            background: white;
-                            color: #667eea;
-                            border: none;
-                            border-radius: 50px;
-                            cursor: pointer;
-                            font-weight: bold;
-                            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-                        ">
-                            🔄 Tải Lại Trang
-                        </button>
-                    </div>
-                `;
-                clearInterval(devToolsCheck);
-            }
-        }, 1000);
 
         // Chặn debug
         (function() {
