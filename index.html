@@ -672,15 +672,16 @@
         async function handleLogin() {
             const username = document.getElementById('loginUsername').value.trim();
             const password = document.getElementById('loginPassword').value;
-
             const result = await DB.loginUser(username, password);
-            
+        
             if (result.success) {
                 gameState.isLoggedIn = true;
                 gameState.currentUsername = username;
+                gameState.player = result.userData;
                 gameState.authError = '';
-                
+        
                 let needSave = false;
+        
                 if (!gameState.player.ownedWeapons) {
                     gameState.player.ownedWeapons = [];
                     needSave = true;
@@ -703,41 +704,42 @@
                     gameState.player.lastWeeklyReset = Date.now();
                     needSave = true;
                 }
-                
+        
+                // Sync HP về đúng maxHp sau khi player đã load
+                const stats = getTotalStats();
+                if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
+                    gameState.player.hp = stats.totalHp;
+                    needSave = true;
+                }
+        
                 if (needSave) {
                     await saveGame();
                 }
-                
+        
                 localStorage.setItem('rpg_session_user', username);
                 localStorage.setItem('rpg_session_pass', password);
-                
+        
                 db.ref('users/' + username + '/playerData').on('value', (snapshot) => {
                     if (snapshot.exists()) {
                         gameState.player = snapshot.val();
                         render();
                     }
                 });
-                
+        
                 checkNotifications();
-                
+        
                 setTimeout(() => {
                     if (!gameState.isInBattle && gameState.currentView === 'game') {
                         startBattle();
                     }
                 }, 500);
-                
+        
                 render();
             } else {
                 gameState.authError = result.message;
                 render();
             }
-            const stats = getTotalStats();
-                if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
-                    gameState.player.hp = stats.totalHp;
-                    needSave = true;
-                }
         }
-
         function handleLogout() {
             if (confirm('Bạn có chắc muốn đăng xuất?')) {
                 if (gameState.currentUsername) {
@@ -2954,23 +2956,19 @@
         async function init() {
             const savedUser = localStorage.getItem('rpg_session_user');
             const savedPass = localStorage.getItem('rpg_session_pass');
-            const stats = getTotalStats();
-            if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
-                gameState.player.hp = stats.totalHp;
-                needSave = true;
-            }
-            
+        
             if (savedUser && savedPass) {
                 console.log('🔄 Tìm thấy session, đang tự động đăng nhập...');
                 const result = await DB.loginUser(savedUser, savedPass);
-                
+        
                 if (result.success) {
                     gameState.isLoggedIn = true;
                     gameState.currentUsername = savedUser;
                     gameState.player = result.userData;
                     gameState.authError = '';
-                    
+        
                     let needSave = false;
+        
                     if (!gameState.player.ownedWeapons) {
                         gameState.player.ownedWeapons = [];
                         needSave = true;
@@ -2993,26 +2991,33 @@
                         gameState.player.lastWeeklyReset = Date.now();
                         needSave = true;
                     }
-                    
+        
+                    // Sync HP đúng sau khi player đã load
+                    const stats = getTotalStats();
+                    if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
+                        gameState.player.hp = stats.totalHp;
+                        needSave = true;
+                    }
+        
                     if (needSave) {
                         await saveGame();
                     }
-                    
+        
                     db.ref('users/' + savedUser + '/playerData').on('value', (snapshot) => {
                         if (snapshot.exists()) {
                             gameState.player = snapshot.val();
                             render();
                         }
                     });
-                    
+        
                     checkNotifications();
-                    
+        
                     setTimeout(() => {
                         if (!gameState.isInBattle && gameState.currentView === 'game') {
                             startBattle();
                         }
                     }, 500);
-                    
+        
                     console.log('✅ Tự động đăng nhập thành công!');
                 } else {
                     console.log('❌ Session không hợp lệ, xóa session');
@@ -3020,67 +3025,58 @@
                     localStorage.removeItem('rpg_session_pass');
                 }
             }
-            
+        
+            // Reset boss hàng ngày / hàng tuần
             setInterval(() => {
                 if (!gameState.player) return;
-                
                 const now = Date.now();
                 const dayMs = 24 * 60 * 60 * 1000;
                 const weekMs = 7 * dayMs;
-
                 let updated = false;
-
+        
                 if (now - gameState.player.lastDailyReset > dayMs) {
                     gameState.player.dailyBosses = 2;
                     gameState.player.lastDailyReset = now;
                     updated = true;
                 }
-
                 if (now - gameState.player.lastWeeklyReset > weekMs) {
                     gameState.player.weeklyBosses = 3;
                     gameState.player.lastWeeklyReset = now;
                     updated = true;
                 }
-
                 if (updated) {
                     saveGame();
                     render();
                 }
             }, 60000);
-
+        
+            // Kiểm tra notification mới
             setInterval(() => {
                 if (gameState.isLoggedIn && !gameState.currentNotification) {
                     checkNotifications();
                 }
             }, 30000);
-
-            // KIỂM TRA VÀ TẮT BUFF HẾT HẠN MỖI 10 GIÂY
+        
+            // Kiểm tra buff hết hạn mỗi 10 giây
             setInterval(() => {
                 const now = Date.now();
                 let needUpdate = false;
-                
                 ['hp', 'atk', 'def'].forEach(type => {
                     if (gameState.adBoosts[type].active && now >= gameState.adBoosts[type].endTime) {
                         gameState.adBoosts[type].active = false;
-                        
-                        // KHI BUFF HP HẾT HẠN, ĐIỀU CHỈNH MÁU HIỆN TẠI
                         if (type === 'hp' && gameState.player) {
-                            const stats = getTotalStats(); // Lấy maxHp mới (không còn +100)
+                            const stats = getTotalStats();
                             if (gameState.player.hp > stats.totalHp) {
                                 gameState.player.hp = stats.totalHp;
                                 saveGame();
                             }
                         }
-                        
                         needUpdate = true;
                     }
                 });
-                
-                if (needUpdate) {
-                    render();
-                }
+                if (needUpdate) render();
             }, 10000);
-
+        
             render();
         }
 
