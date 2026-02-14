@@ -2436,7 +2436,7 @@
                     
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 text-sm md:text-base">
-                            ✅ <strong>ADSTERRA THẬT:</strong> 2 Smart Links + 1 Popunder = 3 Quảng Cáo
+                            ✅ <strong>LƯU Ý:</strong> Tắt Chặn Quảng Cáo Nếu Có Lỗi !
                         </p>
                         <p class="text-center text-green-200 text-xs mt-2">
                             Số QC đã xem: ${gameState.player.adsWatched || 0}
@@ -2445,11 +2445,11 @@
 
                     <div class="space-y-4">
                         <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút - LƯU VÀO FIREBASE)</h3>
+                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút)</h3>
                             <div class="grid md:grid-cols-3 gap-3 md:gap-4">
                                 ${[
                                     { type: 'hp', label: '+100 HP', icon: '❤️', color: 'from-red-500 to-pink-600' },
-                                    { type: 'atk', label: '+75 ATK', icon: '⚔️', color: 'from-orange-500 to-red-600' },
+                                    { type: 'atk', label: '+40 ATK', icon: '⚔️', color: 'from-orange-500 to-red-600' },
                                     { type: 'def', label: '+10 DEF', icon: '🛡️', color: 'from-blue-500 to-purple-600' }
                                 ].map(boost => {
                                     const timeLeft = getBuffTimeLeft(boost.type);
@@ -2469,28 +2469,6 @@
                                         </button>
                                     `;
                                 }).join('')}
-                            </div>
-                        </div>
-
-                        <div class="bg-gradient-to-br from-yellow-900/50 to-orange-900/50 rounded-xl p-4 md:p-6 border-2 border-yellow-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">💰 NHẬN VÀNG (ĐÃ GIẢM ĐỂ CÂN BẰNG)</h3>
-                            <div class="grid md:grid-cols-2 gap-3 md:gap-4">
-                                <button
-                                    onclick="watchAd('coin1');"
-                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
-                                >
-                                    <div class="text-2xl mb-1">💰</div>
-                                    <div>+~${adReward}đ</div>
-                                    <div class="text-xs mt-1">(1 QC)</div>
-                                </button>
-                                <button
-                                    onclick="watchAd('coin2');"
-                                    class="py-4 rounded-xl font-bold bg-gradient-to-r from-yellow-500 to-orange-600 hover:scale-105 transform transition-all"
-                                >
-                                    <div class="text-2xl mb-1">💎</div>
-                                    <div>+~${adReward * 2}đ</div>
-                                    <div class="text-xs mt-1">(2 QC)</div>
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -2629,7 +2607,7 @@
 
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 font-bold">
-                            ✅ FIREBASE REALTIME - Mua bán tự do giữa các thành viên!
+                            Mua bán tự do giữa các thành viên!
                         </p>
                     </div>
 
@@ -2778,11 +2756,11 @@
                         <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                             ${[
                                 { real: 10000, gold: 10000, bonus: 0 },
-                                { real: 20000, gold: 20000, bonus: 2000 },
-                                { real: 50000, gold: 50000, bonus: 5000 },
-                                { real: 100000, gold: 100000, bonus: 15000 },
-                                { real: 200000, gold: 200000, bonus: 40000 },
-                                { real: 500000, gold: 500000, bonus: 150000 }
+                                { real: 20000, gold: 20000, bonus: 0 },
+                                { real: 50000, gold: 50000, bonus: 0 },
+                                { real: 100000, gold: 100000, bonus: 5000 },
+                                { real: 200000, gold: 200000, bonus: 10000 },
+                                { real: 500000, gold: 500000, bonus: 30000 }
                             ].map(item => {
                                 const totalGold = item.gold + item.bonus;
                                 const bonusPercent = item.bonus > 0 ? Math.round((item.bonus / item.gold) * 100) : 0;
@@ -2912,18 +2890,18 @@
                     
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 font-bold text-sm md:text-base">
-                            ✅ FIREBASE REALTIME - Gửi yêu cầu và chờ admin duyệt!
+                            ✅ Gửi yêu cầu và chờ admin duyệt!
                         </p>
                         <p class="text-center text-green-200 text-xs mt-2">
-                            ⚠️ Trong production thật cần tích hợp Payment Gateway hợp pháp
+                            ⚠️ Người Mới Cần 7 Ngày Để Duyệt Tiền !
                         </p>
                     </div>
 
                     <div class="grid md:grid-cols-3 gap-3 md:gap-4 mb-6">
                         ${[
-                            { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '20K' },
-                            { method: 'momo', label: 'MoMo', icon: '📱', min: '20K' },
-                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '10K' }
+                            { method: 'bank', label: 'Ngân Hàng', icon: '🏦', min: '50K' },
+                            { method: 'momo', label: 'MoMo', icon: '📱', min: '50K' },
+                            { method: 'card', label: 'Thẻ Cào', icon: '🎫', min: '20K' }
                         ].map(item => `
                             <button
                                 onclick="showWithdrawForm('${item.method}')"
@@ -3033,7 +3011,7 @@
             return `
                 <div class="max-w-6xl mx-auto">
                     <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
-                        👑 ADMIN PANEL - FIREBASE REALTIME
+                        👑 ADMIN PANEL
                     </h2>
 
                     <!-- Stats Overview -->
