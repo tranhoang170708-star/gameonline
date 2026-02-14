@@ -227,6 +227,12 @@
                             weeklyBosses: 3,
                             lastDailyReset: Date.now(),
                             lastWeeklyReset: Date.now(),
+                            adBoosts: {
+                                hp: { active: false, endTime: 0 },
+                                atk: { active: false, endTime: 0 },
+                                def: { active: false, endTime: 0 }
+                            },
+                            adsWatched: 0
                         },
                         createdAt: Date.now()
                     };
@@ -593,12 +599,6 @@
             isInBattle: false,
             canAttack: true,
             autoFight: true,
-            adBoosts: {
-                hp: { active: false, endTime: 0 },
-                atk: { active: false, endTime: 0 },
-                def: { active: false, endTime: 0 }
-            },
-            adsWatched: 0,
             marketView: 'browse',
             selectedItemToSell: null,
             sellPrice: '',
@@ -635,21 +635,32 @@
 
         // ==================== AD SMART LINK FUNCTION ====================
         function openSmartLink() {
-            // 1. Mở Smart Link tab mới
-            window.open(
+            console.log('📺 Đang mở 3 quảng cáo...');
+            
+            // 1. Mở Smart Link 1
+            const link1 = window.open(
                 'https://semicolondriverelevated.com/s9ae0s1p?key=bda893f9d0a68097bed549b6d4b78214',
                 '_blank'
             );
-            window.open(
-                'https://semicolondriverelevated.com/cicth883i?key=5b8239799d30b709d3c88064c90c3484',
-                '_blank'
-            );
+            
+            // 2. Mở Smart Link 2 sau 500ms (tránh popup blocker)
+            setTimeout(() => {
+                const link2 = window.open(
+                    'https://semicolondriverelevated.com/cicth883i?key=5b8239799d30b709d3c88064c90c3484',
+                    '_blank'
+                );
+            }, 500);
         
-            // 2. Load Popunder script động (tránh chạy trước khi click)
-            const popunder = document.createElement('script');
-            popunder.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
-            popunder.async = true;
-            document.head.appendChild(popunder);
+            // 3. Load Popunder script sau 1s
+            setTimeout(() => {
+                const popunder = document.createElement('script');
+                popunder.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
+                popunder.async = true;
+                document.head.appendChild(popunder);
+                console.log('✅ Đã load Popunder script');
+            }, 1000);
+            
+            console.log('✅ Đã mở Smart Link 1 & 2, Popunder đang load...');
         }
 
         // ==================== AUTH FUNCTIONS ====================
@@ -695,6 +706,7 @@
         
                 let needSave = false;
         
+                // Khởi tạo các trường cần thiết
                 if (!gameState.player.ownedWeapons) {
                     gameState.player.ownedWeapons = [];
                     needSave = true;
@@ -717,8 +729,22 @@
                     gameState.player.lastWeeklyReset = Date.now();
                     needSave = true;
                 }
+                
+                // ✅ FIX: Khởi tạo adBoosts nếu chưa có
+                if (!gameState.player.adBoosts) {
+                    gameState.player.adBoosts = {
+                        hp: { active: false, endTime: 0 },
+                        atk: { active: false, endTime: 0 },
+                        def: { active: false, endTime: 0 }
+                    };
+                    needSave = true;
+                }
+                if (!gameState.player.adsWatched) {
+                    gameState.player.adsWatched = 0;
+                    needSave = true;
+                }
         
-                // Sync HP về đúng maxHp sau khi player đã load
+                // Sync HP về đúng maxHp
                 const stats = getTotalStats();
                 if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
                     gameState.player.hp = stats.totalHp;
@@ -732,6 +758,7 @@
                 localStorage.setItem('rpg_session_user', username);
                 localStorage.setItem('rpg_session_pass', password);
         
+                // Listen to realtime updates
                 db.ref('users/' + username + '/playerData').on('value', (snapshot) => {
                     if (snapshot.exists()) {
                         gameState.player = snapshot.val();
@@ -753,6 +780,7 @@
                 render();
             }
         }
+
         function handleLogout() {
             if (confirm('Bạn có chắc muốn đăng xuất?')) {
                 if (gameState.currentUsername) {
@@ -812,23 +840,31 @@
                 totalAtk += Math.floor(totalAtk * (gameState.player.pet.atkBonus / 100));
             }
 
-            if (gameState.adBoosts.hp.active && Date.now() < gameState.adBoosts.hp.endTime) totalHp += 100;
-            if (gameState.adBoosts.atk.active && Date.now() < gameState.adBoosts.atk.endTime) totalAtk += 75;
-            if (gameState.adBoosts.def.active && Date.now() < gameState.adBoosts.def.endTime) totalDef += 10;
+            // ✅ FIX: Lấy buff từ gameState.player.adBoosts thay vì gameState.adBoosts
+            const now = Date.now();
+            if (gameState.player.adBoosts) {
+                if (gameState.player.adBoosts.hp.active && now < gameState.player.adBoosts.hp.endTime) {
+                    totalHp += 100;
+                }
+                if (gameState.player.adBoosts.atk.active && now < gameState.player.adBoosts.atk.endTime) {
+                    totalAtk += 75;
+                }
+                if (gameState.player.adBoosts.def.active && now < gameState.player.adBoosts.def.endTime) {
+                    totalDef += 10;
+                }
+            }
 
             return { totalAtk, totalDef, totalHp, totalCrit };
         }
 
-        // ==================== MONSTER GENERATION (TĂNG ĐỘ KHÓ) ====================
+        // ==================== MONSTER GENERATION ====================
         function generateMonster(stage, isBoss = false, bossType = 'normal') {
-            // TĂNG HP VÀ ATK CỦA QUÁI ĐỂ KHÓ KIẾM TIỀN HƠN
-            const baseHp = 50 + stage * 25;  // Tăng từ 30 + stage*15
-            const baseAtk = 2 + stage * 1;   // Tăng từ 1 + stage*0.5
+            const baseHp = 50 + stage * 25;
+            const baseAtk = 2 + stage * 1;
             
             let hp = baseHp;
             let atk = baseAtk;
-            // GIẢM VÀNG NHẬN ĐƯỢC
-            let goldReward = Math.floor((5 + stage * 3) * 0.4);  // Giảm đáng kể
+            let goldReward = Math.floor((5 + stage * 3) * 0.4);
             let expReward = Math.floor((20 + stage * 10) * 0.7);
             let name = `Quái Vật Lv.${stage}`;
             let icon = '👾';
@@ -1023,10 +1059,16 @@
         }
 
         async function handleDefeat() {
-            const goldLost = Math.floor(gameState.player.gold * 0.1);
-            gameState.player.gold = Math.max(0, gameState.player.gold - goldLost);
+            // ✅ FIX: CHỈ TRỪ VÀNG KHI THUA BOSS NGÀY HOẶC BOSS TUẦN
+            let goldLost = 0;
             
-            addLog(`💀 Bạn đã thua! -${goldLost} vàng (10%)`, 'error');
+            if (gameState.monster && (gameState.monster.bossType === 'daily' || gameState.monster.bossType === 'weekly')) {
+                goldLost = Math.floor(gameState.player.gold * 0.1);
+                gameState.player.gold = Math.max(0, gameState.player.gold - goldLost);
+                addLog(`💀 Bạn đã thua ${gameState.monster.name}! -${goldLost} vàng (10%)`, 'error');
+            } else {
+                addLog(`💀 Bạn đã thua! Không mất vàng vì đây là quái thường/Boss Ải.`, 'error');
+            }
             
             const stats = getTotalStats();
             gameState.player.hp = stats.totalHp;
@@ -1298,21 +1340,20 @@
             render();
         }
 
-        // ==================== AD FUNCTIONS (CẢI TIẾN) ====================
+        // ==================== AD FUNCTIONS (ĐÃ SỬA) ====================
         function calculateAdReward() {
-            // GIẢM PHẦN THƯỞNG VÀNG TỪ QUẢNG CÁO
-            const baseReward = 20;  // Giảm từ 50
+            const baseReward = 20;
             const difficulty = Math.max(1, gameState.player.currentStage / 10);
-            const randomBonus = Math.random() * 0.3 + 0.5;  // Giảm random
-            return Math.floor(baseReward * difficulty * randomBonus * 0.3);  // Giảm từ 0.7
+            const randomBonus = Math.random() * 0.3 + 0.5;
+            return Math.floor(baseReward * difficulty * randomBonus * 0.3);
         }
 
         function watchAd(type) {
             // KIỂM TRA COOLDOWN 10 PHÚT
             if (type === 'hp' || type === 'atk' || type === 'def') {
                 const now = Date.now();
-                if (gameState.adBoosts[type].active && now < gameState.adBoosts[type].endTime) {
-                    const minutesLeft = Math.ceil((gameState.adBoosts[type].endTime - now) / 60000);
+                if (gameState.player.adBoosts[type].active && now < gameState.player.adBoosts[type].endTime) {
+                    const minutesLeft = Math.ceil((gameState.player.adBoosts[type].endTime - now) / 60000);
                     addLog(`⏳ Buff ${type.toUpperCase()} còn ${minutesLeft} phút! Chờ hết mới xem lại.`, 'error');
                     return;
                 }
@@ -1320,35 +1361,47 @@
 
             addLog('📺 Đang mở quảng cáo...', 'info');
             
-            // MỞ SMART LINK
+            // MỞ 3 QUẢNG CÁO
             openSmartLink();
             
-            // POPUP SẼ TỰ CHẠY NHỜ SCRIPT Ở <HEAD>
-            
-            setTimeout(() => {
-                gameState.adsWatched++;
+            setTimeout(async () => {
+                // ✅ FIX: Tăng adsWatched và lưu vào player
+                if (!gameState.player.adsWatched) gameState.player.adsWatched = 0;
+                gameState.player.adsWatched++;
                 
                 if (type === 'hp' || type === 'atk' || type === 'def') {
                     const endTime = Date.now() + 10 * 60 * 1000; // 10 PHÚT
-                    gameState.adBoosts[type] = { active: true, endTime };
+                    
+                    // ✅ FIX: Lưu buff vào gameState.player.adBoosts
+                    if (!gameState.player.adBoosts) {
+                        gameState.player.adBoosts = {
+                            hp: { active: false, endTime: 0 },
+                            atk: { active: false, endTime: 0 },
+                            def: { active: false, endTime: 0 }
+                        };
+                    }
+                    
+                    gameState.player.adBoosts[type] = { active: true, endTime };
                     
                     // NẾU LÀ BUFF HP, CỘNG LUÔN 100 HP HIỆN TẠI
                     if (type === 'hp') {
-                        const stats = getTotalStats(); // Lấy maxHp mới (đã + 100)
+                        const stats = getTotalStats();
                         gameState.player.hp = Math.min(gameState.player.hp + 100, stats.totalHp);
-                        saveGame();
                     }
+                    
+                    // ✅ LƯU VÀO FIREBASE
+                    await saveGame();
                     
                     addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
                 } else if (type === 'coin1') {
                     const bonus = calculateAdReward();
                     gameState.player.gold += bonus;
-                    saveGame();
+                    await saveGame();
                     addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
                 } else if (type === 'coin2') {
                     const bonus = calculateAdReward() * 2;
                     gameState.player.gold += bonus;
-                    saveGame();
+                    await saveGame();
                     addLog(`💎 +${bonus} Vàng từ 2 quảng cáo!`, 'success');
                 }
                 render();
@@ -1357,13 +1410,13 @@
 
         // HELPER: TÍNH THỜI GIAN CÒN LẠI
         function getBuffTimeLeft(type) {
-            if (!gameState.adBoosts[type].active) return 0;
+            if (!gameState.player.adBoosts || !gameState.player.adBoosts[type].active) return 0;
             const now = Date.now();
-            if (now >= gameState.adBoosts[type].endTime) {
-                gameState.adBoosts[type].active = false;
+            if (now >= gameState.player.adBoosts[type].endTime) {
+                gameState.player.adBoosts[type].active = false;
                 return 0;
             }
-            return Math.ceil((gameState.adBoosts[type].endTime - now) / 60000); // phút
+            return Math.ceil((gameState.player.adBoosts[type].endTime - now) / 60000);
         }
 
         // ==================== WITHDRAW FUNCTIONS ====================
@@ -2193,16 +2246,16 @@
                     
                     <div class="bg-green-900/30 border-2 border-green-500/50 rounded-xl p-4 mb-6">
                         <p class="text-center text-green-300 text-sm md:text-base">
-                            ✅ <strong>ADSTERRA THẬT:</strong> Social Bar + Smart Link + Popup
+                            ✅ <strong>ADSTERRA THẬT:</strong> 2 Smart Links + 1 Popunder = 3 Quảng Cáo
                         </p>
                         <p class="text-center text-green-200 text-xs mt-2">
-                            Số QC đã xem: ${gameState.adsWatched}
+                            Số QC đã xem: ${gameState.player.adsWatched || 0}
                         </p>
                     </div>
 
                     <div class="space-y-4">
                         <div class="bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-xl p-4 md:p-6 border-2 border-purple-500/30">
-                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút - KHÔNG STACK)</h3>
+                            <h3 class="text-lg md:text-xl font-bold mb-4">⚡ BUFF STATS (10 phút - LƯU VÀO FIREBASE)</h3>
                             <div class="grid md:grid-cols-3 gap-3 md:gap-4">
                                 ${[
                                     { type: 'hp', label: '+100 HP', icon: '❤️', color: 'from-red-500 to-pink-600' },
@@ -3004,8 +3057,19 @@
                         gameState.player.lastWeeklyReset = Date.now();
                         needSave = true;
                     }
+                    if (!gameState.player.adBoosts) {
+                        gameState.player.adBoosts = {
+                            hp: { active: false, endTime: 0 },
+                            atk: { active: false, endTime: 0 },
+                            def: { active: false, endTime: 0 }
+                        };
+                        needSave = true;
+                    }
+                    if (!gameState.player.adsWatched) {
+                        gameState.player.adsWatched = 0;
+                        needSave = true;
+                    }
         
-                    // Sync HP đúng sau khi player đã load
                     const stats = getTotalStats();
                     if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
                         gameState.player.hp = stats.totalHp;
@@ -3070,14 +3134,18 @@
                 }
             }, 30000);
         
-            // Kiểm tra buff hết hạn mỗi 10 giây
+            // ✅ FIX: Kiểm tra buff hết hạn từ gameState.player.adBoosts
             setInterval(() => {
+                if (!gameState.player || !gameState.player.adBoosts) return;
+                
                 const now = Date.now();
                 let needUpdate = false;
+                
                 ['hp', 'atk', 'def'].forEach(type => {
-                    if (gameState.adBoosts[type].active && now >= gameState.adBoosts[type].endTime) {
-                        gameState.adBoosts[type].active = false;
-                        if (type === 'hp' && gameState.player) {
+                    if (gameState.player.adBoosts[type].active && now >= gameState.player.adBoosts[type].endTime) {
+                        gameState.player.adBoosts[type].active = false;
+                        
+                        if (type === 'hp') {
                             const stats = getTotalStats();
                             if (gameState.player.hp > stats.totalHp) {
                                 gameState.player.hp = stats.totalHp;
@@ -3087,7 +3155,11 @@
                         needUpdate = true;
                     }
                 });
-                if (needUpdate) render();
+                
+                if (needUpdate) {
+                    saveGame();
+                    render();
+                }
             }, 10000);
         
             render();
