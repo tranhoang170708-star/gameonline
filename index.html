@@ -674,6 +674,11 @@
             const password = document.getElementById('loginPassword').value;
 
             const result = await DB.loginUser(username, password);
+            const stats = getTotalStats();
+            if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
+                gameState.player.hp = stats.totalHp;
+                needSave = true;
+            }
             
             if (result.success) {
                 gameState.isLoggedIn = true;
@@ -969,7 +974,8 @@
             gameState.player.level = newLevel;
             gameState.player.atk = newAtk;
             gameState.player.maxHp = newMaxHp;
-            gameState.player.hp = gameState.player.maxHp;
+            const stats = getTotalStats();
+            gameState.player.hp = stats.totalHp;
 
             if (defeatedMonster.bossType === 'daily') {
                 gameState.player.dailyBosses--;
@@ -1008,7 +1014,8 @@
             
             addLog(`💀 Bạn đã thua! -${goldLost} vàng (10%)`, 'error');
             
-            gameState.player.hp = gameState.player.maxHp;
+            const stats = getTotalStats();
+            gameState.player.hp = stats.totalHp;
             await saveGame();
             gameState.isInBattle = false;
             gameState.monster = null;
@@ -1067,7 +1074,8 @@
                 gameState.player.ownedArmors.push(item);
                 gameState.player.armor = item;
                 gameState.player.maxHp += item.hp;
-                gameState.player.hp = gameState.player.maxHp;
+                const stats = getTotalStats();
+                gameState.player.hp = stats.totalHp;
             } else if (type === 'pet') {
                 if (!gameState.player.ownedPets) gameState.player.ownedPets = [];
                 gameState.player.ownedPets.push(item);
@@ -1100,8 +1108,9 @@
                 gameState.player.armor = item;
                 gameState.player.maxHp += item.hp;
                 
-                if (gameState.player.hp > gameState.player.maxHp) {
-                    gameState.player.hp = gameState.player.maxHp;
+                const stats = getTotalStats();
+                if (gameState.player.hp > stats.totalHp) {
+                    gameState.player.hp = stats.totalHp;
                 }
                 
                 addLog(`✅ Đã trang bị ${item.icon} ${item.name}!`, 'success');
@@ -1264,7 +1273,8 @@
                 gameState.player.atk += 5;
             } else if (stat === 'hp') {
                 gameState.player.maxHp += 20;
-                gameState.player.hp = gameState.player.maxHp;
+                const stats = getTotalStats();
+                gameState.player.hp = stats.totalHp;
             } else if (stat === 'crit') {
                 gameState.player.crit += 2;
             }
@@ -2945,6 +2955,11 @@
         async function init() {
             const savedUser = localStorage.getItem('rpg_session_user');
             const savedPass = localStorage.getItem('rpg_session_pass');
+            const stats = getTotalStats();
+            if (gameState.player.hp < stats.totalHp && !gameState.isInBattle) {
+                gameState.player.hp = stats.totalHp;
+                needSave = true;
+            }
             
             if (savedUser && savedPass) {
                 console.log('🔄 Tìm thấy session, đang tự động đăng nhập...');
