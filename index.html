@@ -785,7 +785,7 @@
 
         // ==================== AD SMART LINK FUNCTION ====================
         function openSmartLink() {
-            console.log('📺 Đang mở 3 quảng cáo...');
+            console.log('📺 Đang mở 4 quảng cáo...');
             
             // 1. Mở Smart Link 1
             const link1 = window.open(
@@ -793,15 +793,23 @@
                 '_blank'
             );
             
-            // 2. Mở Smart Link 2 sau 500ms (tránh popup blocker)
+            // 2. Mở Smart Link 2 sau 300ms
             setTimeout(() => {
                 const link2 = window.open(
                     'https://semicolondriverelevated.com/cicth883i?key=5b8239799d30b709d3c88064c90c3484',
                     '_blank'
                 );
-            }, 500);
+            }, 300);
         
-            // 3. Load Popunder script sau 1s
+            // 3. Mở Smart Link 3 sau 600ms
+            setTimeout(() => {
+                const link3 = window.open(
+                    'https://semicolondriverelevated.com/d8zx3h7tp?key=64c623ba578c42e9720e2590bd702c57',
+                    '_blank'
+                );
+            }, 600);
+        
+            // 4. Load Popunder script sau 1s
             setTimeout(() => {
                 const popunder = document.createElement('script');
                 popunder.src = 'https://semicolondriverelevated.com/66/d0/80/66d080087cbb902163f2ef15923179f3.js';
@@ -810,7 +818,7 @@
                 console.log('✅ Đã load Popunder script');
             }, 1000);
             
-            console.log('✅ Đã mở Smart Link 1 & 2, Popunder đang load...');
+            console.log('✅ Đã mở 4 quảng cáo (Smart Link 1, 2, 3 & Popunder)');
         }
 
         // ==================== AUTH FUNCTIONS ====================
@@ -1499,64 +1507,85 @@
         }
 
         function watchAd(type) {
-            // KIỂM TRA COOLDOWN 10 PHÚT
-            if (type === 'hp' || type === 'atk' || type === 'def') {
-                const now = Date.now();
-                if (gameState.player.adBoosts[type].active && now < gameState.player.adBoosts[type].endTime) {
-                    const minutesLeft = Math.ceil((gameState.player.adBoosts[type].endTime - now) / 60000);
-                    addLog(`⏳ Buff ${type.toUpperCase()} còn ${minutesLeft} phút! Chờ hết mới xem lại.`, 'error');
-                    return;
-                }
-            }
-
-            addLog('📺 Đang mở quảng cáo...', 'info');
-            
-            // MỞ 3 QUẢNG CÁO
-            openSmartLink();
-            
-            setTimeout(async () => {
-                // ✅ FIX: Tăng adsWatched và lưu vào player
-                if (!gameState.player.adsWatched) gameState.player.adsWatched = 0;
-                gameState.player.adsWatched++;
-                
-                if (type === 'hp' || type === 'atk' || type === 'def') {
-                    const endTime = Date.now() + 10 * 60 * 1000; // 10 PHÚT
-                    
-                    // ✅ FIX: Lưu buff vào gameState.player.adBoosts
-                    if (!gameState.player.adBoosts) {
-                        gameState.player.adBoosts = {
-                            hp: { active: false, endTime: 0 },
-                            atk: { active: false, endTime: 0 },
-                            def: { active: false, endTime: 0 }
-                        };
-                    }
-                    
-                    gameState.player.adBoosts[type] = { active: true, endTime };
-                    
-                    // NẾU LÀ BUFF HP, CỘNG LUÔN 100 HP HIỆN TẠI
-                    if (type === 'hp') {
-                        const stats = getTotalStats();
-                        gameState.player.hp = Math.min(gameState.player.hp + 100, stats.totalHp);
-                    }
-                    
-                    // ✅ LƯU VÀO FIREBASE
-                    await saveGame();
-                    
-                    addLog(`✅ Buff ${type.toUpperCase()} trong 10 phút!`, 'success');
-                } else if (type === 'coin1') {
-                    const bonus = calculateAdReward();
-                    gameState.player.gold += bonus;
-                    await saveGame();
-                    addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
-                } else if (type === 'coin2') {
-                    const bonus = calculateAdReward() * 2;
-                    gameState.player.gold += bonus;
-                    await saveGame();
-                    addLog(`💎 +${bonus} Vàng từ 2 quảng cáo!`, 'success');
-                }
-                render();
-            }, 2000);
+    // KIỂM TRA COOLDOWN 10 PHÚT
+    if (type === 'hp' || type === 'atk' || type === 'def') {
+        const now = Date.now();
+        if (gameState.player.adBoosts[type].active && now < gameState.player.adBoosts[type].endTime) {
+            const minutesLeft = Math.ceil((gameState.player.adBoosts[type].endTime - now) / 60000);
+            addLog(`⏳ Buff ${type.toUpperCase()} còn ${minutesLeft} phút! Chờ hết mới xem lại.`, 'error');
+            return;
         }
+    }
+
+    // Khởi tạo tracking nếu chưa có
+    if (!gameState.adClickTracking) {
+        gameState.adClickTracking = {};
+    }
+    
+    if (!gameState.adClickTracking[type]) {
+        gameState.adClickTracking[type] = { clicks: 0, required: 3 };
+    }
+    
+    const tracking = gameState.adClickTracking[type];
+    
+    // Mở 4 quảng cáo
+    openSmartLink();
+    
+    tracking.clicks++;
+    addLog(`📺 Đã mở quảng cáo lần ${tracking.clicks}/${tracking.required}`, 'info');
+    
+    // Nếu chưa đủ 3 lần
+    if (tracking.clicks < tracking.required) {
+        addLog(`⏳ Bấm thêm ${tracking.required - tracking.clicks} lần nữa để nhận buff!`, 'info');
+        render();
+        return;
+    }
+    
+    // ĐÃ ĐỦ 3 LẦN - CHO BUFF
+    setTimeout(async () => {
+        if (!gameState.player.adsWatched) gameState.player.adsWatched = 0;
+        gameState.player.adsWatched++;
+        
+        if (type === 'hp' || type === 'atk' || type === 'def') {
+            const endTime = Date.now() + 10 * 60 * 1000; // 10 PHÚT
+            
+            if (!gameState.player.adBoosts) {
+                gameState.player.adBoosts = {
+                    hp: { active: false, endTime: 0 },
+                    atk: { active: false, endTime: 0 },
+                    def: { active: false, endTime: 0 }
+                };
+            }
+            
+            gameState.player.adBoosts[type] = { active: true, endTime };
+            
+            if (type === 'hp') {
+                const stats = getTotalStats();
+                gameState.player.hp = Math.min(gameState.player.hp + 100, stats.totalHp);
+            }
+            
+            await saveGame();
+            
+            addLog(`✅ Đã xem đủ 3 lần! Nhận buff ${type.toUpperCase()} trong 10 phút!`, 'success');
+            
+            // Reset tracking
+            gameState.adClickTracking[type] = { clicks: 0, required: 3 };
+        } else if (type === 'coin1') {
+            const bonus = calculateAdReward();
+            gameState.player.gold += bonus;
+            await saveGame();
+            addLog(`💰 +${bonus} Vàng từ quảng cáo!`, 'success');
+            gameState.adClickTracking[type] = { clicks: 0, required: 3 };
+        } else if (type === 'coin2') {
+            const bonus = calculateAdReward() * 2;
+            gameState.player.gold += bonus;
+            await saveGame();
+            addLog(`💰 +${bonus} Vàng từ quảng cáo x2 !`, 'success');
+            gameState.adClickTracking[type] = { clicks: 0, required: 6 };
+        }
+        render();
+    }, 1000);
+}
 
         // HELPER: TÍNH THỜI GIAN CÒN LẠI
         function getBuffTimeLeft(type) {
