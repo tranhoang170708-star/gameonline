@@ -1479,7 +1479,7 @@
         async function upgradeStats(stat) {
             const costs = {
                 atk: 1 + gameState.player.atk * 5,
-                hp: 1 + gameState.player.maxHp * 100,
+                hp: 100 + gameState.player.maxHp * 1,
                 crit: 200 + gameState.player.crit * 100
             };
 
@@ -2202,7 +2202,7 @@
         function renderUpgradeView() {
             const upgradeItems = [
                 { stat: 'atk', label: 'Sức Mạnh', icon: '⚔️', current: gameState.player.atk, bonus: '+5 ATK', color: 'from-orange-500 to-red-600', cost: 1 + gameState.player.atk * 5 },
-                { stat: 'hp', label: 'Máu', icon: '❤️', current: gameState.player.maxHp, bonus: '+20 HP', color: 'from-red-500 to-pink-600', cost: 1 + gameState.player.maxHp * 100 },
+                { stat: 'hp', label: 'Máu', icon: '❤️', current: gameState.player.maxHp, bonus: '+20 HP', color: 'from-red-500 to-pink-600', cost: 100 + gameState.player.maxHp * 1 },
                 { stat: 'crit', label: 'Chí Mạng', icon: '⚡', current: gameState.player.crit, bonus: '+1% CRIT', color: 'from-yellow-500 to-orange-600', cost: 200 + gameState.player.crit * 100 }
             ];
 
