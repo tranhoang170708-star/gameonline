@@ -1035,28 +1035,31 @@
             let icon = '👾';
             let damageType = 'fixed';
             let damagePercent = 0;
+            let goldMultiplier = 1;
 
             if (isBoss) {
                 if (bossType === 'stage') {
-                    hp = baseHp * 1.4;
-                    atk = baseAtk * 1;
-                    goldReward = Math.floor(goldReward * 2);
+                    hp = baseHp * 1.2;
+                    atk = baseAtk * 0.8;
+                    goldReward = Math.floor(goldReward * 1.2);
                     expReward = Math.floor(expReward * 1.8);
                     name = `Boss Ải ${Math.floor(stage / 10) + 1}`;
                     icon = '👹';
                 } else if (bossType === 'daily') {
-                    hp = baseHp * 3;
+                    hp = baseHp * 2.5;
                     atk = baseAtk * 2;
-                    goldReward = Math.floor(goldReward * 2);
+                    goldReward = 0;
+                    goldMultiplier = 1.5;
                     expReward = Math.floor(expReward * 2.5);
                     name = `Boss Ngày`;
                     icon = '🔥';
                     damageType = 'percent';
                     damagePercent = 40;
                 } else if (bossType === 'weekly') {
-                    hp = baseHp * 5;
-                    atk = baseAtk * 3.5;
-                    goldReward = Math.floor(goldReward * 3);
+                    hp = baseHp * 4.5;
+                    atk = baseAtk * 3;
+                    goldReward = 0;
+                    goldMultiplier = 2.5;
                     expReward = Math.floor(expReward * 4);
                     name = `Boss Tuần`;
                     icon = '⚡';
@@ -1072,6 +1075,7 @@
                 maxHp: Math.floor(hp),
                 atk: Math.floor(atk),
                 goldReward: Math.floor(goldReward),
+                goldMultiplier,
                 expReward: Math.floor(expReward),
                 stage,
                 isBoss,
@@ -1168,7 +1172,32 @@
         }
 
         async function handleVictory(defeatedMonster) {
-            const newGold = gameState.player.gold + defeatedMonster.goldReward;
+            // ✅ TÍNH VÀNG THEO LOẠI BOSS (KHÔNG GIỚI HẠN VÀNG NGÀY)
+            let goldToAdd = 0;
+            
+            if (defeatedMonster.bossType === 'daily') {
+                // Boss Ngày: x1.5 vàng hiện có
+                goldToAdd = Math.floor(gameState.player.gold * 1.5);
+                
+                // Giới hạn tối thiểu để tránh trường hợp có 0 vàng
+                if (goldToAdd < 1000) {
+                    goldToAdd = 1000;
+                }
+            } else if (defeatedMonster.bossType === 'weekly') {
+                // Boss Tuần: x2.5 vàng hiện có
+                goldToAdd = Math.floor(gameState.player.gold * 2.5);
+                
+                // Giới hạn tối thiểu
+                if (goldToAdd < 1000) {
+                    goldToAdd = 1000;
+                }
+            } else {
+                // Quái thường và Boss Ải: vàng cố định
+                goldToAdd = defeatedMonster.goldReward;
+            }
+            
+            // ✅ Cộng vàng trực tiếp (không giới hạn)
+            const newGold = gameState.player.gold + goldToAdd;
             const newExp = gameState.player.exp + defeatedMonster.expReward;
             const expToLevel = gameState.player.level * 100;
             
@@ -1176,14 +1205,14 @@
             let remainingExp = newExp;
             let newAtk = gameState.player.atk;
             let newMaxHp = gameState.player.maxHp;
-
+        
             while (remainingExp >= expToLevel) {
                 remainingExp -= expToLevel;
                 newLevel++;
                 newAtk += 0;
                 newMaxHp += 5;
             }
-
+        
             gameState.player.gold = newGold;
             gameState.player.exp = remainingExp;
             gameState.player.level = newLevel;
@@ -1191,7 +1220,7 @@
             gameState.player.maxHp = newMaxHp;
             const stats = getTotalStats();
             gameState.player.hp = stats.totalHp;
-
+        
             if (defeatedMonster.bossType === 'daily') {
                 gameState.player.dailyBosses--;
             } else if (defeatedMonster.bossType === 'weekly') {
@@ -1203,17 +1232,25 @@
                 gameState.player.currentStage++;
                 gameState.player.totalMonstersKilled++;
             }
-
+        
             await saveGame();
-
-            addLog(`🎉 Chiến thắng! +${defeatedMonster.goldReward}💰 +${defeatedMonster.expReward}⭐`, 'success');
+        
+            // ✅ Hiển thị thông báo phù hợp với từng loại boss
+            if (defeatedMonster.bossType === 'daily') {
+                addLog(`🎉 Thắng Boss Ngày! +${goldToAdd.toLocaleString()}💰 (x1.5 vàng) +${defeatedMonster.expReward}⭐`, 'success');
+            } else if (defeatedMonster.bossType === 'weekly') {
+                addLog(`🎉 Thắng Boss Tuần! +${goldToAdd.toLocaleString()}💰 (x2.5 vàng) +${defeatedMonster.expReward}⭐`, 'success');
+            } else {
+                addLog(`🎉 Chiến thắng! +${goldToAdd.toLocaleString()}💰 +${defeatedMonster.expReward}⭐`, 'success');
+            }
+            
             if (newLevel > gameState.player.level) {
                 addLog(`🆙 Level Up! Lv.${newLevel}`, 'success');
             }
-
+        
             gameState.isInBattle = false;
             gameState.monster = null;
-
+        
             if (gameState.autoFight && gameState.currentView === 'game') {
                 setTimeout(() => {
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
@@ -1224,23 +1261,37 @@
         }
 
         async function handleDefeat() {
-            // ✅ FIX: CHỈ TRỪ VÀNG KHI THUA BOSS NGÀY HOẶC BOSS TUẦN
+            // ✅ TRỪ VÀNG THEO TỪNG LOẠI BOSS
             let goldLost = 0;
+            let lostPercent = 0;
             
-            if (gameState.monster && (gameState.monster.bossType === 'daily' || gameState.monster.bossType === 'weekly')) {
+            if (gameState.monster && gameState.monster.bossType === 'daily') {
+                // Boss Ngày: Trừ 5% vàng
+                lostPercent = 5;
+                goldLost = Math.floor(gameState.player.gold * 0.05);
+                gameState.player.gold = Math.max(0, gameState.player.gold - goldLost);
+                addLog(`💀 Bạn đã thua ${gameState.monster.name}! -${goldLost.toLocaleString()}đ (${lostPercent}% vàng)`, 'error');
+            } else if (gameState.monster && gameState.monster.bossType === 'weekly') {
+                // Boss Tuần: Trừ 10% vàng
+                lostPercent = 10;
                 goldLost = Math.floor(gameState.player.gold * 0.1);
                 gameState.player.gold = Math.max(0, gameState.player.gold - goldLost);
-                addLog(`💀 Bạn đã thua ${gameState.monster.name}! -${goldLost} vàng (10%)`, 'error');
+                addLog(`💀 Bạn đã thua ${gameState.monster.name}! -${goldLost.toLocaleString()}đ (${lostPercent}% vàng)`, 'error');
             } else {
+                // Quái thường và Boss Ải: KHÔNG mất vàng
                 addLog(`💀 Bạn đã thua! Không mất vàng vì đây là quái thường/Boss Ải.`, 'error');
             }
             
+            // Hồi đầy máu sau khi thua
             const stats = getTotalStats();
             gameState.player.hp = stats.totalHp;
+            
             await saveGame();
+            
             gameState.isInBattle = false;
             gameState.monster = null;
             
+            // Tự động chiến đấu tiếp nếu bật auto
             if (gameState.autoFight && gameState.currentView === 'game') {
                 setTimeout(() => {
                     if (gameState.currentView === 'game' && !gameState.isInBattle) {
@@ -2367,18 +2418,31 @@
         }
 
         function renderBossView() {
+            // ✅ Tính phần thưởng dự kiến
+            const dailyReward = Math.max(1000, Math.floor(gameState.player.gold * 1.5));
+            const weeklyReward = Math.max(1000, Math.floor(gameState.player.gold * 2.5));
+            
             return `
                 <div class="max-w-4xl mx-auto">
                     <h2 class="text-2xl md:text-3xl font-bold mb-6 text-center bg-gradient-to-r from-red-400 to-orange-500 bg-clip-text text-transparent">
                         👑 BOSS TỰ CHỌN
                     </h2>
+                    
                     <div class="grid md:grid-cols-2 gap-4 md:gap-6">
                         <div class="bg-gradient-to-br from-red-900/50 to-orange-900/50 rounded-2xl p-4 md:p-6 border-2 border-red-500/30">
                             <div class="text-center mb-4">
                                 <div class="text-5xl md:text-6xl mb-2">🔥</div>
                                 <h3 class="text-xl md:text-2xl font-bold text-red-300">BOSS NGÀY</h3>
-                                <p class="text-sm text-orange-300 mt-2"> Thắng : x2 Vàng!</p>
-                                <p class="text-sm text-orange-300 mt-2"> Thua : -5% Vàng!</p>
+                                <p class="text-sm text-orange-300 mt-2">
+                                    Thắng : x1.5 Vàng !
+                                </p>
+                                <p class="text-xs text-yellow-400 mt-1">
+                                    (Dự kiến: ~${dailyReward.toLocaleString()}đ)
+                                </p>
+                                <p class="text-sm text-orange-300 mt-2">
+                                    Thua : -5% Vàng !
+                                </p>
+                                
                             </div>
                             <div class="bg-black/30 rounded-lg p-3 mb-4">
                                 <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.dailyBosses}/2</span></p>
@@ -2395,13 +2459,20 @@
                                 ${gameState.player.dailyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
                             </button>
                         </div>
-
+        
                         <div class="bg-gradient-to-br from-purple-900/50 to-pink-900/50 rounded-2xl p-4 md:p-6 border-2 border-purple-500/30">
                             <div class="text-center mb-4">
                                 <div class="text-5xl md:text-6xl mb-2">⚡</div>
                                 <h3 class="text-xl md:text-2xl font-bold text-purple-300">BOSS TUẦN</h3>
-                                <p class="text-sm text-pink-300 mt-2">Thắng : x3 Vàng!</p>
-                                <p class="text-sm text-pink-300 mt-2">Thua : -10% Vàng!</p>
+                                <p class="text-sm text-pink-300 mt-2">
+                                    Thắng x2.5 Vàng !
+                                </p>
+                                <p class="text-xs text-yellow-400 mt-1">
+                                    (Dự kiến: ~${weeklyReward.toLocaleString()}đ)
+                                </p>
+                                <p class="text-sm text-pink-300 mt-2">
+                                    Thua -10% Vàng !
+                                </p>
                             </div>
                             <div class="bg-black/30 rounded-lg p-3 mb-4">
                                 <p class="text-center">Lượt còn lại: <span class="font-bold text-yellow-400">${gameState.player.weeklyBosses}/3</span></p>
@@ -2418,6 +2489,16 @@
                                 ${gameState.player.weeklyBosses > 0 ? '⚔️ THÁCH ĐẤU' : '❌ Hết lượt'}
                             </button>
                         </div>
+                    </div>
+                    
+                    <!-- Thêm thông báo cảnh báo -->
+                    <div class="mt-6 bg-yellow-900/30 border-2 border-yellow-500/50 rounded-xl p-4">
+                        <p class="text-center text-yellow-300 text-sm">
+                            ⚠️ <strong>LƯU Ý:</strong> Phần thưởng vàng = Số vàng hiện có x hệ số!<br/>
+                            <span class="text-xs text-yellow-200">
+                                Nên đánh boss khi có nhiều vàng để nhận thưởng cao hơn!
+                            </span>
+                        </p>
                     </div>
                 </div>
             `;
